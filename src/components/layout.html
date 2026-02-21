@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="stylesheet" href="/global.css?t={{ build_timestamp }}" />
+    {% block title %}
+    <title>Architektura Heleny</title>
+    <meta name="description" content="Architektura Heleny - portfolio projektów" />
+    {% endblock %}
+</head>
+
+<body>
+    {% include 'components/navbar.html' %}
+    <main class="main-content">
+        {% block content %}
+        {% endblock %}
+    </main>
+    {% include 'components/footer.html' %}
+</body>
+
+</html>

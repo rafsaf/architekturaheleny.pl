@@ -1,0 +1,117 @@
+{% extends "components/layout.html" %}
+{% block title %}
+<title>Architektura Heleny | {{ project.title }}</title>
+<meta name="description" content="{{ project.title }} - projekt" />
+{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ project.title }}</h1>
+
+{% if project.main_image %}
+<div class="project-main-image image-shell"
+    style="--placeholder-image: url('{{ project.main_image.placeholder_asset_path or project.main_image.asset_path }}');">
+    <img src="{{ project.main_image.mobile_asset_path or project.main_image.asset_path }}"
+        srcset="{{ project.main_image.mobile_asset_path or project.main_image.asset_path }} 900w, {{ project.main_image.desktop_asset_path or project.main_image.asset_path }} 1800w"
+        sizes="(max-width: 900px) 100vw, 92vw" alt="{{ project.title }} - główne zdjęcie" loading="lazy" class="fade-in-image"
+        onload="this.classList.add('is-loaded')" />
+</div>
+{% endif %}
+
+<div class="project-content-grid">
+    <div class="project-content-text">
+        <div class="project-detail-meta">
+            {% if project.localization %}
+            <div><b>Lokalizacja:</b> {{ project.localization }}</div>
+            {% endif %}
+            {% if project.authors %}
+            <div><b>Autorzy:</b> {{ project.authors }}</div>
+            {% endif %}
+            {% if project.project_status %}
+            <div><b>Status:</b> {{ project.project_status }}</div>
+            {% endif %}
+            {% if project.surface %}
+            <div><b>Powierzchnia:</b> {{ project.surface }}</div>
+            {% endif %}
+        </div>
+
+        <div class="project-description">
+            {{ project.long_description | markdown }}
+        </div>
+    </div>
+
+    <div class="project-content-media">
+        {% if project.carousel_images %}
+        <div class="project-carousel" data-carousel data-interval="5000">
+            <button class="project-carousel-nav project-carousel-nav-prev" type="button"
+                aria-label="Poprzednie zdjęcie">
+                &#10094;
+            </button>
+            <button class="project-carousel-nav project-carousel-nav-next" type="button" aria-label="Następne zdjęcie">
+                &#10095;
+            </button>
+            <div class="project-carousel-hint">najedź, aby zatrzymać</div>
+            {% for image in project.carousel_images %}
+            <img src="{{ image.mobile_asset_path or image.asset_path }}"
+                srcset="{{ image.mobile_asset_path or image.asset_path }} 900w, {{ image.desktop_asset_path or image.asset_path }} 1800w"
+                sizes="(max-width: 900px) 100vw, 58vw" alt="{{ project.title }} - karuzela {{ loop.index }}" loading="lazy"
+                class="project-carousel-image{% if loop.first %} is-active{% endif %}" />
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if project.other_images %}
+        <div class="project-images">
+            {% for image in project.other_images %}
+            <div class="image-shell" style="--placeholder-image: url('{{ image.placeholder_asset_path or image.asset_path }}');">
+                <img src="{{ image.mobile_asset_path or image.asset_path }}"
+                    srcset="{{ image.mobile_asset_path or image.asset_path }} 900w, {{ image.desktop_asset_path or image.asset_path }} 1800w"
+                    sizes="(max-width: 900px) 100vw, 58vw" alt="{{ project.title }} - zdjęcie {{ loop.index }}"
+                    loading="lazy" class="fade-in-image" onload="this.classList.add('is-loaded')" />
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    for (const carousel of document.querySelectorAll("[data-carousel]")) {
+        const images = carousel.querySelectorAll(".project-carousel-image");
+        if (images.length < 2) continue;
+
+        const interval = Number(carousel.dataset.interval || 2000);
+        const prevButton = carousel.querySelector(".project-carousel-nav-prev");
+        const nextButton = carousel.querySelector(".project-carousel-nav-next");
+        let index = 0;
+        let paused = false;
+
+        const goTo = (newIndex) => {
+            images[index].classList.remove("is-active");
+            index = (newIndex + images.length) % images.length;
+            images[index].classList.add("is-active");
+        };
+
+        carousel.addEventListener("mouseenter", () => {
+            paused = true;
+        });
+
+        carousel.addEventListener("mouseleave", () => {
+            paused = false;
+        });
+
+        prevButton?.addEventListener("click", () => {
+            goTo(index - 1);
+        });
+
+        nextButton?.addEventListener("click", () => {
+            goTo(index + 1);
+        });
+
+        setInterval(() => {
+            if (paused) {
+                return;
+            }
+            goTo(index + 1);
+        }, interval);
+    }
+</script>
+{% endblock %}

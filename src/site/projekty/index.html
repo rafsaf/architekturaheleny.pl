@@ -1,0 +1,26 @@
+{% extends "components/layout.html" %}
+{% block title %}
+<title>Architektura Heleny | Projekty</title>
+<meta name="description" content="Architektura Heleny - projekty" />
+{% endblock %}
+{% block content %}
+<h1 class="page-title">projekty</h1>
+<ul class="projects-grid">
+    {% for project in projects %}
+    <li>
+        <a class="project-card image-shell" href="/projekty/{{ project.url }}/"
+            style="--placeholder-image: url('{{ project.cover_image.placeholder_asset_path if project.cover_image else '' }}');">
+            {% if project.cover_image %}
+            <img src="{{ project.cover_image.mobile_asset_path or project.cover_image.asset_path }}"
+                srcset="{{ project.cover_image.mobile_asset_path or project.cover_image.asset_path }} 900w, {{ project.cover_image.desktop_asset_path or project.cover_image.asset_path }} 1800w"
+                sizes="(max-width: 900px) 100vw, 50vw" alt="{{ project.title }}" loading="lazy" class="fade-in-image"
+                onload="this.classList.add('is-loaded')" />
+            {% else %}
+            <div class="project-card-empty">{{ project.title }}</div>
+            {% endif %}
+            <div class="project-card-overlay">{{ project.title }}</div>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}

@@ -1,0 +1,58 @@
+<nav id="navbar" class="nav">
+    <div class="nav-center">
+        <div class="nav-header">
+            <a class="nav-brand" href="/projekty/">architekturaheleny.pl</a>
+            <button class="nav-hamburger-btn" id="hamburger-menu" aria-label="hamburger menu">
+                <svg class="nav-hamburger" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div id="navbar-phone-links" class="nav-phone-links">
+            <ul>
+                <li><a class="nav-link" href="/projekty/">projekty</a></li>
+                <li><a class="nav-link" href="/o-mnie/">o mnie</a></li>
+            </ul>
+        </div>
+
+        <div class="nav-desktop-links">
+            <ul>
+                <li><a class="nav-link" href="/projekty/">projekty</a></li>
+                <li><a class="nav-link" href="/o-mnie/">o mnie</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<script>
+    const nav = document.getElementById("navbar");
+    const menu = document.getElementById("hamburger-menu");
+
+    menu.addEventListener(
+        "click",
+        () => {
+            if (menu.opened !== true) {
+                menu.opened = true;
+                nav.style.setProperty("--menu-display", "block");
+                return;
+            }
+            menu.opened = false;
+            nav.style.setProperty("--menu-display", "none");
+        },
+        false
+    );
+
+    const links = document.getElementsByClassName("nav-link");
+    const currentPath = window.location.pathname;
+
+    for (const link of links) {
+        const urlPath = new URL(link.href).pathname;
+        const isExact = urlPath === currentPath;
+        const isSectionMatch = currentPath.startsWith(urlPath);
+
+        if (isExact || isSectionMatch) {
+            link.style.setProperty("color", "var(--accent)");
+        }
+    }
+</script>
