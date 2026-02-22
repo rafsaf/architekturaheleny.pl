@@ -4,9 +4,9 @@
 
 {% if project.main_image %}
 <div class="project-main-image image-shell"
-    style="--placeholder-image: url('{{ project.main_image.placeholder_asset_path or project.main_image.asset_path }}');">
-    <img src="{{ project.main_image.desktop_asset_path or project.main_image.asset_path }}"
-        srcset="{{ project.main_image.mobile_asset_path or project.main_image.asset_path }} 900w, {{ project.main_image.desktop_asset_path or project.main_image.asset_path }} 1800w"
+    style="--placeholder-image: url('{{ (project.main_image.placeholder_asset_path or project.main_image.asset_path) | asset_url }}');">
+    <img src="{{ (project.main_image.desktop_asset_path or project.main_image.asset_path) | asset_url }}"
+        srcset="{{ (project.main_image.mobile_asset_path or project.main_image.asset_path) | asset_url }} 900w, {{ (project.main_image.desktop_asset_path or project.main_image.asset_path) | asset_url }} 1800w"
         sizes="(max-width: 900px) 100vw, 1800px" alt="{{ project.title }} - główne zdjęcie" loading="lazy"
         class="fade-in-image" onload="this.classList.add('is-loaded')" />
 </div>
@@ -46,8 +46,8 @@
             </button>
             <div class="project-carousel-hint">najedź, aby zatrzymać</div>
             {% for image in project.carousel_images %}
-            <img src="{{ image.desktop_asset_path or image.asset_path }}"
-                srcset="{{ image.mobile_asset_path or image.asset_path }} 900w, {{ image.desktop_asset_path or image.asset_path }} 1800w"
+            <img src="{{ (image.desktop_asset_path or image.asset_path) | asset_url }}"
+                srcset="{{ (image.mobile_asset_path or image.asset_path) | asset_url }} 900w, {{ (image.desktop_asset_path or image.asset_path) | asset_url }} 1800w"
                 sizes="(max-width: 900px) 100vw, 1800px" alt="{{ project.title }} - karuzela {{ loop.index }}"
                 loading="lazy" class="project-carousel-image{% if loop.first %} is-active{% endif %}" />
             {% endfor %}
@@ -58,9 +58,9 @@
         <div class="project-images">
             {% for image in project.other_images %}
             <div class="image-shell"
-                style="--placeholder-image: url('{{ image.placeholder_asset_path or image.asset_path }}');">
-                <img src="{{ image.desktop_asset_path or image.asset_path }}"
-                    srcset="{{ image.mobile_asset_path or image.asset_path }} 900w, {{ image.desktop_asset_path or image.asset_path }} 1800w"
+                style="--placeholder-image: url('{{ (image.placeholder_asset_path or image.asset_path) | asset_url }}');">
+                <img src="{{ (image.desktop_asset_path or image.asset_path) | asset_url }}"
+                    srcset="{{ (image.mobile_asset_path or image.asset_path) | asset_url }} 900w, {{ (image.desktop_asset_path or image.asset_path) | asset_url }} 1800w"
                     sizes="(max-width: 900px) 100vw, 1800px" alt="{{ project.title }} - zdjęcie {{ loop.index }}"
                     loading="lazy" class="fade-in-image" onload="this.classList.add('is-loaded')" />
             </div>

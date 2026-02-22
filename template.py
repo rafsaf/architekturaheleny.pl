@@ -4,6 +4,7 @@ import os
 import pathlib
 import re
 import shutil
+import urllib.parse
 import xml.sax.saxutils
 
 import jinja2
@@ -309,6 +310,25 @@ if __name__ == "__main__":
 
     environment = jinja2.Environment(loader=jinja2.FileSystemLoader(src))
 
+    def asset_url_filter(value: str | None) -> str:
+        if not value:
+            return ""
+
+        string_value = str(value)
+        if "://" in string_value:
+            parsed = urllib.parse.urlsplit(string_value)
+            return urllib.parse.urlunsplit(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    urllib.parse.quote(parsed.path, safe="/-._~"),
+                    parsed.query,
+                    parsed.fragment,
+                )
+            )
+
+        return urllib.parse.quote(string_value, safe="/-._~")
+
     def markdown_filter(content: str) -> str:
         markdown_converter = markdown.Markdown(
             extensions=[
@@ -322,6 +342,7 @@ if __name__ == "__main__":
         return markdown_converter.convert(content or "")
 
     environment.filters["markdown"] = markdown_filter
+    environment.filters["asset_url"] = asset_url_filter
 
     projects = load_projects()
     context = {

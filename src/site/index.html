@@ -14,10 +14,10 @@ minimalistycznej formie, z naciskiem na detal i funkcję." %}
     {% for project in projects %}
     <li>
         <a class="project-card image-shell" data-project-card href="/projekty/{{ project.url }}/"
-            style="--placeholder-image: url('{{ project.cover_image.placeholder_asset_path if project.cover_image else '' }}');">
+            style="--placeholder-image: url('{{ (project.cover_image.placeholder_asset_path if project.cover_image else '') | asset_url }}');">
             {% if project.cover_image %}
-            <img src="{{ project.cover_image.desktop_asset_path or project.cover_image.asset_path }}"
-                srcset="{{ project.cover_image.mobile_asset_path or project.cover_image.asset_path }} 900w, {{ project.cover_image.desktop_asset_path or project.cover_image.asset_path }} 1800w"
+            <img src="{{ (project.cover_image.desktop_asset_path or project.cover_image.asset_path) | asset_url }}"
+                srcset="{{ (project.cover_image.mobile_asset_path or project.cover_image.asset_path) | asset_url }} 900w, {{ (project.cover_image.desktop_asset_path or project.cover_image.asset_path) | asset_url }} 1800w"
                 sizes="(max-width: 900px) 100vw, 1800px" alt="{{ project.title }}" {% if loop.first
                 %}fetchpriority="high" loading="eager" class="is-loaded" {% else %}loading="lazy" class="fade-in-image"
                 onload="this.classList.add('is-loaded')" {% endif %} />

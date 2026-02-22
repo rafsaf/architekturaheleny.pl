@@ -49,6 +49,28 @@ UUID_PATTERN = re.compile(
 )
 
 
+def sanitize_filename_stem(stem: str) -> str:
+    cleaned = re.sub(r"\s+", "-", (stem or "").strip())
+    cleaned = re.sub(r"[^0-9A-Za-z._-]", "-", cleaned)
+    cleaned = re.sub(r"-+", "-", cleaned)
+    cleaned = cleaned.strip("-._")
+    return cleaned or "file"
+
+
+def sanitize_download_filename(filename_download: str | None) -> str:
+    if not filename_download:
+        return ""
+
+    safe_name = pathlib.Path(filename_download).name
+    if not safe_name:
+        return ""
+
+    parsed = pathlib.Path(safe_name)
+    stem = sanitize_filename_stem(parsed.stem)
+    suffix = re.sub(r"[^0-9A-Za-z.]", "", parsed.suffix.lower())
+    return f"{stem}{suffix}"
+
+
 def fetch_json(url: str) -> dict:
     request = urllib.request.Request(url, headers=REQUEST_HEADERS)
     with urllib.request.urlopen(request) as response:
@@ -116,7 +138,7 @@ def get_asset_filename(file_id: str, file_meta: dict) -> str:
     if not filename_download:
         return f"{default_name}-{short_hash}"
 
-    safe_filename = pathlib.Path(filename_download).name
+    safe_filename = sanitize_download_filename(filename_download)
     if not safe_filename:
         return f"{default_name}-{short_hash}"
     return f"{file_id}-{short_hash}__{safe_filename}"
@@ -128,7 +150,7 @@ def get_avif_asset_filename(file_id: str, file_meta: dict) -> str:
     if not filename_download:
         return f"{file_id}-{short_hash}.avif"
 
-    safe_filename = pathlib.Path(filename_download).name
+    safe_filename = sanitize_download_filename(filename_download)
     stem = pathlib.Path(safe_filename).stem
     if not stem:
         return f"{file_id}-{short_hash}.avif"
@@ -143,7 +165,7 @@ def get_variant_filename(
     if not filename_download:
         return f"{file_id}-{short_hash}-{variant}.{extension}"
 
-    safe_filename = pathlib.Path(filename_download).name
+    safe_filename = sanitize_download_filename(filename_download)
     stem = pathlib.Path(safe_filename).stem
     if not stem:
         return f"{file_id}-{short_hash}-{variant}.{extension}"

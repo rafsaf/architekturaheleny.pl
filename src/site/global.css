@@ -83,7 +83,7 @@ a {
     height: 100%;
     object-fit: cover;
     display: block;
-    filter: grayscale(1) contrast(0.91);
+    filter: grayscale(1) contrast(0.94);
     transition: filter 0.25s ease;
 }
 
@@ -319,7 +319,6 @@ a {
 
 .nav-brand {
     text-decoration: none;
-    text-transform: lowercase;
     font-size: 0.9rem;
     letter-spacing: 0.01em;
     color: var(--text);
