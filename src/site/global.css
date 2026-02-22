@@ -93,7 +93,6 @@ a {
 .project-card:hover img,
 .project-card:focus-visible img,
 .project-card:focus-within img,
-.project-card.is-touch-active img,
 .project-card.is-scroll-active img {
     filter: none;
 }
@@ -124,7 +123,6 @@ a {
 .project-card:hover .project-card-overlay,
 .project-card:focus-visible .project-card-overlay,
 .project-card:focus-within .project-card-overlay,
-.project-card.is-touch-active .project-card-overlay,
 .project-card.is-scroll-active .project-card-overlay {
     opacity: 1;
 }

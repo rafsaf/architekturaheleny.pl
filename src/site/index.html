@@ -44,22 +44,7 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
     (() => {
         const cards = Array.from(document.querySelectorAll("[data-project-card]"));
         if (!cards.length) return;
-        const touchQuery = window.matchMedia("(hover: none), (pointer: coarse)");
-        let activeTouchCard = null;
-
-        const clearTouchActive = () => {
-            if (!activeTouchCard) return;
-            activeTouchCard.classList.remove("is-touch-active");
-            activeTouchCard = null;
-        };
-
-        const activateTouch = (card) => {
-            if (activeTouchCard && activeTouchCard !== card) {
-                activeTouchCard.classList.remove("is-touch-active");
-            }
-            card.classList.add("is-touch-active");
-            activeTouchCard = card;
-        };
+        const mobileLayoutQuery = window.matchMedia("(max-width: 900px)");
 
         const isBottomOfPage = () => {
             const doc = document.documentElement;
@@ -69,7 +54,7 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
         const updateCards = () => {
             const nav = document.getElementById("navbar");
             const navIsSticky = nav && getComputedStyle(nav).position === "sticky";
-            const triggerLine = navIsSticky
+            const desktopLine = navIsSticky
                 ? nav.getBoundingClientRect().bottom + 18
                 : 18;
 
@@ -80,10 +65,29 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
                 return;
             }
 
+            if (mobileLayoutQuery.matches) {
+                if (window.scrollY < 8) {
+                    for (const card of cards) {
+                        card.classList.remove("is-scroll-active");
+                    }
+                    return;
+                }
+
+                const mobileLine = window.innerHeight / 2;
+                for (const card of cards) {
+                    const rect = card.getBoundingClientRect();
+                    const midpoint = rect.top + rect.height / 2;
+                    const isRevealed = midpoint <= mobileLine;
+                    card.classList.toggle("is-scroll-active", isRevealed);
+                }
+                return;
+            }
+
             for (const card of cards) {
                 const rect = card.getBoundingClientRect();
-                const isAtTopBand = rect.top <= triggerLine && rect.bottom > triggerLine;
-                card.classList.toggle("is-scroll-active", isAtTopBand);
+                const isAtRevealBand =
+                    rect.top <= desktopLine && rect.bottom > desktopLine;
+                card.classList.toggle("is-scroll-active", isAtRevealBand);
             }
         };
 
@@ -99,54 +103,6 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
 
         window.addEventListener("scroll", onScroll, { passive: true });
         window.addEventListener("resize", onScroll, { passive: true });
-
-        if (touchQuery.matches) {
-            for (const card of cards) {
-                card.addEventListener("click", (event) => {
-                    if (!card.classList.contains("is-touch-active")) {
-                        event.preventDefault();
-                        activateTouch(card);
-                        return;
-                    }
-
-                    clearTouchActive();
-                });
-            }
-
-            document.addEventListener(
-                "touchstart",
-                (event) => {
-                    if (!activeTouchCard) {
-                        return;
-                    }
-
-                    if (!activeTouchCard.contains(event.target)) {
-                        clearTouchActive();
-                    }
-                },
-                { passive: true }
-            );
-
-            document.addEventListener(
-                "touchmove",
-                () => {
-                    clearTouchActive();
-                },
-                { passive: true }
-            );
-
-            document.addEventListener("touchcancel", clearTouchActive, {
-                passive: true,
-            });
-
-            window.addEventListener(
-                "scroll",
-                () => {
-                    clearTouchActive();
-                },
-                { passive: true }
-            );
-        }
 
         updateCards();
     })();
