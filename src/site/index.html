@@ -61,12 +61,24 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
             activeTouchCard = card;
         };
 
+        const isBottomOfPage = () => {
+            const doc = document.documentElement;
+            return window.scrollY + window.innerHeight >= doc.scrollHeight - 2;
+        };
+
         const updateCards = () => {
             const nav = document.getElementById("navbar");
             const navIsSticky = nav && getComputedStyle(nav).position === "sticky";
             const triggerLine = navIsSticky
                 ? nav.getBoundingClientRect().bottom + 18
                 : 18;
+
+            if (isBottomOfPage()) {
+                for (const card of cards) {
+                    card.classList.add("is-scroll-active");
+                }
+                return;
+            }
 
             for (const card of cards) {
                 const rect = card.getBoundingClientRect();
@@ -114,6 +126,18 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
                 },
                 { passive: true }
             );
+
+            document.addEventListener(
+                "touchmove",
+                () => {
+                    clearTouchActive();
+                },
+                { passive: true }
+            );
+
+            document.addEventListener("touchcancel", clearTouchActive, {
+                passive: true,
+            });
 
             window.addEventListener(
                 "scroll",
