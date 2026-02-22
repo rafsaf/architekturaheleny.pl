@@ -7,8 +7,10 @@ import shutil
 import urllib.parse
 import xml.sax.saxutils
 
+import bleach
 import jinja2
 import markdown
+from markupsafe import Markup
 
 
 root_dir = pathlib.Path(__file__).resolve().parent
@@ -365,7 +367,13 @@ if __name__ == "__main__":
     if cms_assets_dir.exists():
         shutil.copytree(cms_assets_dir, out / "cms_assets", dirs_exist_ok=True)
 
-    environment = jinja2.Environment(loader=jinja2.FileSystemLoader(src))
+    environment = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(src),
+        autoescape=jinja2.select_autoescape(
+            enabled_extensions=("html", "xml"),
+            default_for_string=True,
+        ),
+    )
 
     def asset_url_filter(value: str | None) -> str:
         if not value:
@@ -476,7 +484,39 @@ if __name__ == "__main__":
 
         return candidates[0][1]
 
-    def markdown_filter(content: str) -> str:
+    allowed_tags = [
+        "p",
+        "br",
+        "hr",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "ul",
+        "ol",
+        "li",
+        "blockquote",
+        "strong",
+        "em",
+        "code",
+        "pre",
+        "a",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+    ]
+    allowed_attributes = {
+        "a": ["href", "title", "target", "rel"],
+        "th": ["colspan", "rowspan"],
+        "td": ["colspan", "rowspan"],
+    }
+
+    def markdown_filter(content: str) -> Markup:
         markdown_converter = markdown.Markdown(
             extensions=[
                 "markdown.extensions.fenced_code",
@@ -486,7 +526,15 @@ if __name__ == "__main__":
             ],
             output_format="html",
         )
-        return markdown_converter.convert(content or "")
+        rendered = markdown_converter.convert(content or "")
+        sanitized = bleach.clean(
+            rendered,
+            tags=allowed_tags,
+            attributes=allowed_attributes,
+            protocols=["http", "https", "mailto"],
+            strip=True,
+        )
+        return Markup(sanitized)
 
     environment.filters["markdown"] = markdown_filter
     environment.filters["asset_url"] = asset_url_filter
