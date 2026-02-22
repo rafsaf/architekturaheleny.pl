@@ -13,7 +13,7 @@ minimalistycznej formie, z naciskiem na detal i funkcję." %}
 <ul class="projects-grid">
     {% for project in projects %}
     <li>
-        <a class="project-card image-shell" href="/projekty/{{ project.url }}/"
+        <a class="project-card image-shell" data-project-card href="/projekty/{{ project.url }}/"
             style="--placeholder-image: url('{{ project.cover_image.placeholder_asset_path if project.cover_image else '' }}');">
             {% if project.cover_image %}
             <img src="{{ project.cover_image.desktop_asset_path or project.cover_image.asset_path }}"
@@ -24,9 +24,44 @@ minimalistycznej formie, z naciskiem na detal i funkcję." %}
             {% else %}
             <div class="project-card-empty">{{ project.title }}</div>
             {% endif %}
-            <div class="project-card-overlay">{{ project.title }}</div>
+            <div class="project-card-overlay"><span class="project-card-overlay-label">{{ project.title }}</span></div>
         </a>
     </li>
     {% endfor %}
 </ul>
+
+<script>
+    (() => {
+        const cards = Array.from(document.querySelectorAll("[data-project-card]"));
+        if (!cards.length) return;
+
+        const updateCards = () => {
+            const nav = document.getElementById("navbar");
+            const navIsSticky = nav && getComputedStyle(nav).position === "sticky";
+            const triggerLine = navIsSticky
+                ? nav.getBoundingClientRect().bottom + 18
+                : 18;
+
+            for (const card of cards) {
+                const rect = card.getBoundingClientRect();
+                const isAtTopBand = rect.top <= triggerLine && rect.bottom > triggerLine;
+                card.classList.toggle("is-scroll-active", isAtTopBand);
+            }
+        };
+
+        let ticking = false;
+        const onScroll = () => {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                updateCards();
+                ticking = false;
+            });
+        };
+
+        window.addEventListener("scroll", onScroll, { passive: true });
+        window.addEventListener("resize", onScroll, { passive: true });
+        updateCards();
+    })();
+</script>
 {% endblock %}
