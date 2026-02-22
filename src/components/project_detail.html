@@ -12,6 +12,12 @@
 </div>
 {% endif %}
 
+<div class="project-view-controls">
+    <button type="button" class="project-text-toggle" data-project-text-toggle aria-pressed="false">
+        Ukryj opis
+    </button>
+</div>
+
 <div class="project-content-grid">
     <div class="project-content-text">
         <div class="project-detail-meta">
@@ -44,7 +50,6 @@
             <button class="project-carousel-nav project-carousel-nav-next" type="button" aria-label="Następne zdjęcie">
                 &#10095;
             </button>
-            <div class="project-carousel-hint">najedź, aby zatrzymać</div>
             {% for image in project.carousel_images %}
             <img src="{{ (image.desktop_asset_path or image.asset_path) | asset_url }}"
                 srcset="{{ (image.mobile_asset_path or image.asset_path) | asset_url }} 900w, {{ (image.desktop_asset_path or image.asset_path) | asset_url }} 1800w"
@@ -109,6 +114,42 @@
             }
             goTo(index + 1);
         }, interval);
+    }
+
+    const textToggleButton = document.querySelector("[data-project-text-toggle]");
+
+    if (textToggleButton) {
+        const desktopQuery = window.matchMedia("(min-width: 900px)");
+
+        const applyTextMode = (isHidden) => {
+            document.body.classList.toggle("project-page-media-focus", isHidden);
+            textToggleButton.setAttribute("aria-pressed", isHidden ? "true" : "false");
+            textToggleButton.textContent = isHidden ? "Pokaż opis" : "Ukryj opis";
+        };
+
+        const resetForMobile = () => {
+            if (!desktopQuery.matches) {
+                applyTextMode(false);
+            }
+        };
+
+        textToggleButton.addEventListener("click", () => {
+            if (!desktopQuery.matches) {
+                return;
+            }
+
+            const nextState =
+                textToggleButton.getAttribute("aria-pressed") !== "true";
+            applyTextMode(nextState);
+        });
+
+        if (desktopQuery.addEventListener) {
+            desktopQuery.addEventListener("change", resetForMobile);
+        } else if (desktopQuery.addListener) {
+            desktopQuery.addListener(resetForMobile);
+        }
+
+        resetForMobile();
     }
 </script>
 {% endblock %}
