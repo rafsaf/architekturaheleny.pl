@@ -1,13 +1,32 @@
-<!DOCTYPE html>
-<html lang="pl">
-
-<head>
-    <meta charset="utf-8" />
-    <meta http-equiv="refresh" content="0; url=/projekty/" />
-    <link rel="canonical" href="/projekty/" />
-    <title>Architektura Heleny</title>
-</head>
-
-<body></body>
-
-</html>
+{% set seo_title = "Architektura Heleny | Projekty" %}
+{% set seo_description = "Portfolio projektów Architektura Heleny: domy, wnętrza i realizacje pokazane w
+minimalistycznej formie, z naciskiem na detal i funkcję." %}
+{% set canonical_url = site_url ~ "/" %}
+{% set og_type = "website" %}
+{% set homepage_image = projects[0].cover_image if projects and projects[0].cover_image else None %}
+{% set og_image_url = site_url ~ (homepage_image.desktop_asset_path or homepage_image.asset_path) if homepage_image else
+"" %}
+{% set twitter_card = "summary_large_image" if og_image_url else "summary" %}
+{% extends "components/layout.html" %}
+{% block content %}
+<h1 class="page-title">Projekty</h1>
+<ul class="projects-grid">
+    {% for project in projects %}
+    <li>
+        <a class="project-card image-shell" href="/projekty/{{ project.url }}/"
+            style="--placeholder-image: url('{{ project.cover_image.placeholder_asset_path if project.cover_image else '' }}');">
+            {% if project.cover_image %}
+            <img src="{{ project.cover_image.desktop_asset_path or project.cover_image.asset_path }}"
+                srcset="{{ project.cover_image.mobile_asset_path or project.cover_image.asset_path }} 900w, {{ project.cover_image.desktop_asset_path or project.cover_image.asset_path }} 1800w"
+                sizes="(max-width: 900px) 100vw, 1800px" alt="{{ project.title }}" {% if loop.first
+                %}fetchpriority="high" loading="eager" class="is-loaded" {% else %}loading="lazy" class="fade-in-image"
+                onload="this.classList.add('is-loaded')" {% endif %} />
+            {% else %}
+            <div class="project-card-empty">{{ project.title }}</div>
+            {% endif %}
+            <div class="project-card-overlay">{{ project.title }}</div>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}

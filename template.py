@@ -1,7 +1,10 @@
 import datetime
 import json
+import os
 import pathlib
+import re
 import shutil
+import xml.sax.saxutils
 
 import jinja2
 import markdown
@@ -13,6 +16,105 @@ site = src / "site"
 out = root_dir / "out"
 cms_data_dir = root_dir / "cms_data"
 cms_assets_dir = cms_data_dir / "assets"
+site_url = os.getenv("SITE_URL", "https://architekturaheleny.pl").rstrip("/")
+
+
+def absolute_url(path: str) -> str:
+    normalized = str(path or "").strip()
+    if not normalized.startswith("/"):
+        normalized = f"/{normalized}"
+    return f"{site_url}{normalized}"
+
+
+def seo_description(content: str | None, fallback: str, max_length: int = 150) -> str:
+    text = (content or "").replace("\r", "\n")
+    text = re.sub(r"```.*?```", " ", text, flags=re.DOTALL)
+    text = re.sub(r"`([^`]*)`", r"\1", text)
+    text = re.sub(r"!\[[^\]]*\]\([^\)]*\)", " ", text)
+    text = re.sub(r"\[([^\]]+)\]\([^\)]*\)", r"\1", text)
+    text = re.sub(r"[#>*_~\-]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if not text:
+        text = fallback
+
+    if len(text) <= max_length:
+        return text
+
+    truncated = text[:max_length].rsplit(" ", 1)[0].strip()
+    if not truncated:
+        truncated = text[:max_length].strip()
+    return truncated
+
+
+def normalize_iso_date(value: str | None, fallback_date: str) -> str:
+    if not value:
+        return fallback_date
+    try:
+        return (
+            datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+            .date()
+            .isoformat()
+        )
+    except ValueError:
+        return fallback_date
+
+
+def write_sitemap_and_robots(projects: list[dict], build_date: str) -> None:
+    urls: list[dict] = [
+        {
+            "loc": absolute_url("/"),
+            "changefreq": "weekly",
+            "priority": "1.0",
+            "lastmod": build_date,
+        },
+        {
+            "loc": absolute_url("/o-mnie/"),
+            "changefreq": "monthly",
+            "priority": "0.6",
+            "lastmod": build_date,
+        },
+    ]
+
+    for project in projects:
+        urls.append(
+            {
+                "loc": absolute_url(f"/projekty/{project['url']}/"),
+                "changefreq": "weekly",
+                "priority": "0.8",
+                "lastmod": project.get("updated_date") or build_date,
+            }
+        )
+
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+
+    for item in urls:
+        lines.extend(
+            [
+                "  <url>",
+                f"    <loc>{xml.sax.saxutils.escape(item['loc'])}</loc>",
+                f"    <lastmod>{item['lastmod']}</lastmod>",
+                f"    <changefreq>{item['changefreq']}</changefreq>",
+                f"    <priority>{item['priority']}</priority>",
+                "  </url>",
+            ]
+        )
+
+    lines.append("</urlset>")
+    (out / "sitemap.xml").write_text("\n".join(lines) + "\n")
+
+    robots_content = "\n".join(
+        [
+            "User-agent: *",
+            "Allow: /",
+            f"Sitemap: {absolute_url('/sitemap.xml')}",
+            "",
+        ]
+    )
+    (out / "robots.txt").write_text(robots_content)
 
 
 def normalize_url_path(url: str) -> str:
@@ -86,6 +188,9 @@ def load_projects() -> list[dict]:
 
     projects: list[dict] = []
     for post in posts:
+        if post.get("status") != "published":
+            continue
+
         title = (post.get("title") or "Bez tytułu").strip()
         post_id = post.get("id")
         project_url = normalize_url_path(post.get("url"))
@@ -103,7 +208,9 @@ def load_projects() -> list[dict]:
 
         main_page_image_id = post.get("main_page_image")
 
-        main_image = files_map.get(str(main_page_image_id)) if main_page_image_id else None
+        main_image = (
+            files_map.get(str(main_page_image_id)) if main_page_image_id else None
+        )
 
         used_ids: set[str] = set()
         if main_page_image_id:
@@ -140,11 +247,21 @@ def load_projects() -> list[dict]:
                 "id": post_id,
                 "title": title,
                 "url": project_url,
+                "updated_date": normalize_iso_date(
+                    post.get("date_updated") or post.get("date_created"),
+                    fallback_date=datetime.datetime.now(datetime.UTC)
+                    .date()
+                    .isoformat(),
+                ),
                 "localization": post.get("localization"),
                 "authors": post.get("authors"),
                 "project_status": post.get("project_status"),
                 "surface": post.get("surface"),
                 "long_description": post.get("long_description") or "",
+                "seo_description": seo_description(
+                    post.get("long_description") or "",
+                    fallback=f"{title} - projekt architektoniczny.",
+                ),
                 "cover_image": cover_image,
                 "main_image": main_image,
                 "carousel_images": carousel_images,
@@ -159,12 +276,30 @@ def render_project_pages(environment: jinja2.Environment, context: dict) -> None
     detail_template = environment.get_template("components/project_detail.html")
 
     for project in context["projects"]:
+        image = project.get("main_image") or project.get("cover_image")
+        image_path = None
+        if image:
+            image_path = image.get("desktop_asset_path") or image.get("asset_path")
+
+        detail_context = {
+            **context,
+            "project": project,
+            "seo_title": f"Architektura Heleny | {project['title']}",
+            "seo_description": project["seo_description"],
+            "canonical_url": absolute_url(f"/projekty/{project['url']}/"),
+            "og_type": "article",
+            "og_image_url": absolute_url(image_path) if image_path else "",
+            "twitter_card": "summary_large_image" if image_path else "summary",
+        }
+
         destination = out / "projekty" / project["url"] / "index.html"
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(detail_template.render({**context, "project": project}))
+        destination.write_text(detail_template.render(detail_context))
 
 
 if __name__ == "__main__":
+    build_date = datetime.datetime.now(datetime.UTC).date().isoformat()
+
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(exist_ok=True)
@@ -192,6 +327,7 @@ if __name__ == "__main__":
     context = {
         "build_timestamp": int(datetime.datetime.now(datetime.UTC).timestamp()),
         "build_year": datetime.datetime.now(datetime.UTC).year,
+        "site_url": site_url,
         "projects": projects,
     }
 
@@ -199,3 +335,4 @@ if __name__ == "__main__":
         process_path(path, context, environment)
 
     render_project_pages(environment, context)
+    write_sitemap_and_robots(projects=projects, build_date=build_date)

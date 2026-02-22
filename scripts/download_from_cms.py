@@ -3,6 +3,7 @@ import os
 import pathlib
 import re
 import shutil
+import hashlib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,8 +38,8 @@ REQUEST_HEADERS = {
 
 IMAGE_VARIANTS = {
     "placeholder": {"width": 24, "quality": 1, "format": "avif"},
-    "mobile": {"width": 900, "quality": 60, "format": "avif"},
-    "desktop": {"width": 1800, "quality": 75, "format": "avif"},
+    "mobile": {"width": 900, "quality": 65, "format": "avif"},
+    "desktop": {"width": 1800, "quality": 85, "format": "avif"},
 }
 
 
@@ -72,61 +73,82 @@ def ensure_directories() -> None:
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def collect_file_ids(items_payload: dict, collection_name: str) -> set[str]:
+def collect_file_ids_for_published_posts(payloads: dict[str, dict]) -> set[str]:
     file_ids: set[str] = set()
-    for item in items_payload.get("data", []):
-        if collection_name in {
-            "architekturahelenypl_post_files",
-            "architekturahelenypl_post_files_1",
-        }:
-            directus_file_id = item.get("directus_files_id")
+
+    posts = payloads.get("architekturahelenypl_post", {}).get("data", [])
+    published_post_ids = {
+        post.get("id")
+        for post in posts
+        if post.get("status") == "published" and post.get("id") is not None
+    }
+
+    for post in posts:
+        if post.get("id") not in published_post_ids:
+            continue
+        main_page_image = post.get("main_page_image")
+        if isinstance(main_page_image, str) and UUID_PATTERN.match(main_page_image):
+            file_ids.add(main_page_image)
+
+    for collection_name in (
+        "architekturahelenypl_post_files",
+        "architekturahelenypl_post_files_1",
+    ):
+        relations = payloads.get(collection_name, {}).get("data", [])
+        for relation in relations:
+            post_id = relation.get("architekturahelenypl_post_id")
+            if post_id not in published_post_ids:
+                continue
+
+            directus_file_id = relation.get("directus_files_id")
             if isinstance(directus_file_id, str) and UUID_PATTERN.match(
                 directus_file_id
             ):
                 file_ids.add(directus_file_id)
 
-        main_page_image = item.get("main_page_image")
-        if isinstance(main_page_image, str) and UUID_PATTERN.match(main_page_image):
-            file_ids.add(main_page_image)
-
     return file_ids
 
 
 def get_asset_filename(file_id: str, file_meta: dict) -> str:
+    short_hash = hashlib.md5(file_id.encode("utf-8")).hexdigest()[:8]
     default_name = file_id
     filename_download = file_meta.get("filename_download")
     if not filename_download:
-        return default_name
+        return f"{default_name}-{short_hash}"
 
     safe_filename = pathlib.Path(filename_download).name
     if not safe_filename:
-        return default_name
-    return f"{file_id}__{safe_filename}"
+        return f"{default_name}-{short_hash}"
+    return f"{file_id}-{short_hash}__{safe_filename}"
 
 
 def get_avif_asset_filename(file_id: str, file_meta: dict) -> str:
+    short_hash = hashlib.md5(file_id.encode("utf-8")).hexdigest()[:8]
     filename_download = file_meta.get("filename_download")
     if not filename_download:
-        return f"{file_id}.avif"
+        return f"{file_id}-{short_hash}.avif"
 
     safe_filename = pathlib.Path(filename_download).name
     stem = pathlib.Path(safe_filename).stem
     if not stem:
-        return f"{file_id}.avif"
-    return f"{file_id}__{stem}.avif"
+        return f"{file_id}-{short_hash}.avif"
+    return f"{file_id}-{short_hash}__{stem}.avif"
 
 
-def get_variant_filename(file_id: str, file_meta: dict, variant: str, extension: str) -> str:
+def get_variant_filename(
+    file_id: str, file_meta: dict, variant: str, extension: str
+) -> str:
+    short_hash = hashlib.md5(f"{file_id}:{variant}".encode("utf-8")).hexdigest()[:8]
     filename_download = file_meta.get("filename_download")
     if not filename_download:
-        return f"{file_id}-{variant}.{extension}"
+        return f"{file_id}-{short_hash}-{variant}.{extension}"
 
     safe_filename = pathlib.Path(filename_download).name
     stem = pathlib.Path(safe_filename).stem
     if not stem:
-        return f"{file_id}-{variant}.{extension}"
+        return f"{file_id}-{short_hash}-{variant}.{extension}"
 
-    return f"{file_id}__{stem}-{variant}.{extension}"
+    return f"{file_id}-{short_hash}__{stem}-{variant}.{extension}"
 
 
 def build_asset_url(file_id: str, params: dict | None = None) -> str:
@@ -137,19 +159,36 @@ def build_asset_url(file_id: str, params: dict | None = None) -> str:
     return f"{CMS_BASE_URL}/assets/{file_id}?{query}"
 
 
+def get_effective_variant_params(variant_params: dict, file_meta: dict) -> dict:
+    params = dict(variant_params)
+    original_width = file_meta.get("width")
+
+    if isinstance(original_width, str) and original_width.isdigit():
+        original_width = int(original_width)
+
+    if isinstance(original_width, int) and original_width > 0 and "width" in params:
+        requested_width = params.get("width")
+        if isinstance(requested_width, int) and requested_width > original_width:
+            params["width"] = original_width
+
+    return params
+
+
 def main() -> None:
     ensure_directories()
 
-    all_file_ids: set[str] = set()
+    payloads: dict[str, dict] = {}
     for collection in COLLECTIONS:
         query = urllib.parse.urlencode({"limit": -1, "fields": "*"})
         items_url = f"{CMS_BASE_URL}/items/{collection}?{query}"
         items_payload = fetch_json(items_url)
+        payloads[collection] = items_payload
 
         (ITEMS_DIR / f"{collection}.json").write_text(
             json.dumps(items_payload, indent=2, ensure_ascii=False)
         )
-        all_file_ids |= collect_file_ids(items_payload, collection)
+
+    all_file_ids = collect_file_ids_for_published_posts(payloads)
 
     files_index = {}
     for file_id in sorted(all_file_ids):
@@ -170,6 +209,9 @@ def main() -> None:
 
         if file_type.startswith("image/"):
             for variant_name, variant_params in IMAGE_VARIANTS.items():
+                effective_params = get_effective_variant_params(
+                    variant_params, meta_data
+                )
                 avif_filename = get_variant_filename(
                     file_id=file_id,
                     file_meta=meta_data,
@@ -180,7 +222,10 @@ def main() -> None:
                 avif_path = CMS_DATA_DIR / avif_relative
 
                 try:
-                    download_binary(build_asset_url(file_id=file_id, params=variant_params), avif_path)
+                    download_binary(
+                        build_asset_url(file_id=file_id, params=effective_params),
+                        avif_path,
+                    )
                     variant_paths[variant_name] = f"/cms_assets/{avif_filename}"
                     variant_formats[variant_name] = "avif"
                 except urllib.error.HTTPError:
@@ -195,7 +240,7 @@ def main() -> None:
 
                     fallback_params = {
                         key: value
-                        for key, value in variant_params.items()
+                        for key, value in effective_params.items()
                         if key != "format"
                     }
                     download_binary(

@@ -4,11 +4,35 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
+    <title>{{ seo_title | default('Architektura Heleny') | e }}</title>
+    <meta name="description"
+        content="{{ seo_description | default('Architektura Heleny - portfolio projektów') | e }}" />
+    {% if canonical_url %}
+    <link rel="canonical" href="{{ canonical_url | e }}" />
+    {% endif %}
+    <meta property="og:locale" content="pl_PL" />
+    <meta property="og:site_name" content="Architektura Heleny" />
+    <meta property="og:type" content="{{ og_type | default('website') | e }}" />
+    <meta property="og:title" content="{{ seo_title | default('Architektura Heleny') | e }}" />
+    <meta property="og:description"
+        content="{{ seo_description | default('Architektura Heleny - portfolio projektów') | e }}" />
+    {% if canonical_url %}
+    <meta property="og:url" content="{{ canonical_url | e }}" />
+    {% endif %}
+    {% if og_image_url %}
+    <meta property="og:image" content="{{ og_image_url | e }}" />
+    {% endif %}
+    <meta name="twitter:card" content="{{ twitter_card | default('summary') | e }}" />
+    <meta name="twitter:title" content="{{ seo_title | default('Architektura Heleny') | e }}" />
+    <meta name="twitter:description"
+        content="{{ seo_description | default('Architektura Heleny - portfolio projektów') | e }}" />
+    {% if og_image_url %}
+    <meta name="twitter:image" content="{{ og_image_url | e }}" />
+    {% endif %}
+    {% if robots_meta %}
+    <meta name="robots" content="{{ robots_meta | e }}" />
+    {% endif %}
     <link rel="stylesheet" href="/global.css?t={{ build_timestamp }}" />
-    {% block title %}
-    <title>Architektura Heleny</title>
-    <meta name="description" content="Architektura Heleny - portfolio projektów" />
-    {% endblock %}
 </head>
 
 <body>

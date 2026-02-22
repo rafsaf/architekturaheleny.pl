@@ -1,0 +1,13 @@
+{% set seo_title = "Architektura Heleny | 404" %}
+{% set seo_description = "Nie znaleziono strony, której szukasz. Wróć do listy projektów Architektura Heleny i kontynuuj
+przeglądanie realizacji." %}
+{% set canonical_url = site_url ~ "/404.html" %}
+{% set og_type = "website" %}
+{% set twitter_card = "summary" %}
+{% set robots_meta = "noindex, nofollow" %}
+{% extends "components/layout.html" %}
+{% block content %}
+<h1 class="page-title">404</h1>
+<p class="page-lead">Nie znaleziono strony, której szukasz.</p>
+<p><a href="/">Przejdź do projektów</a></p>
+{% endblock %}
