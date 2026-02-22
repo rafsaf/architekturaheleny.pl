@@ -9,7 +9,12 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
 {% set twitter_card = "summary_large_image" if og_image_url else "summary" %}
 {% extends "components/layout.html" %}
 {% block content %}
-<h1 class="page-title">Projekty</h1>
+<div class="projects-header">
+    <h1 class="page-title">Projekty</h1>
+    <button type="button" class="scroll-hint" data-scroll-hint aria-label="Przewiń w dół">
+        <span class="scroll-hint-icon" aria-hidden="true">↓</span>
+    </button>
+</div>
 <ul class="projects-grid">
     {% for project in projects %}
     <li>
@@ -45,10 +50,45 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
         const cards = Array.from(document.querySelectorAll("[data-project-card]"));
         if (!cards.length) return;
         const mobileLayoutQuery = window.matchMedia("(max-width: 900px)");
+        const scrollHint = document.querySelector("[data-scroll-hint]");
+        const projectsScrollKey = "projectsScrollY";
+        const projectsReturnFlagKey = "projectsReturnPending";
+
+        const restoreScrollPosition = () => {
+            if (sessionStorage.getItem(projectsReturnFlagKey) !== "1") {
+                return;
+            }
+
+            sessionStorage.removeItem(projectsReturnFlagKey);
+            const rawValue = sessionStorage.getItem(projectsScrollKey);
+            if (!rawValue) {
+                return;
+            }
+
+            const savedScroll = Number(rawValue);
+            if (!Number.isFinite(savedScroll) || savedScroll < 0) {
+                return;
+            }
+
+            window.scrollTo(0, savedScroll);
+        };
+
+        const rememberScrollForProjectNavigation = () => {
+            sessionStorage.setItem(projectsScrollKey, String(Math.max(0, window.scrollY)));
+            sessionStorage.setItem(projectsReturnFlagKey, "1");
+        };
 
         const isBottomOfPage = () => {
             const doc = document.documentElement;
             return window.scrollY + window.innerHeight >= doc.scrollHeight - 2;
+        };
+
+        const updateScrollHint = () => {
+            if (!scrollHint) {
+                return;
+            }
+            const hideHint = window.scrollY > 24 || isBottomOfPage();
+            scrollHint.classList.toggle("is-hidden", hideHint);
         };
 
         const updateCards = () => {
@@ -97,6 +137,7 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
             ticking = true;
             requestAnimationFrame(() => {
                 updateCards();
+                updateScrollHint();
                 ticking = false;
             });
         };
@@ -104,7 +145,20 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
         window.addEventListener("scroll", onScroll, { passive: true });
         window.addEventListener("resize", onScroll, { passive: true });
 
+        for (const card of cards) {
+            card.addEventListener("click", rememberScrollForProjectNavigation);
+        }
+
+        scrollHint?.addEventListener("click", () => {
+            window.scrollBy({
+                top: Math.max(160, Math.round(window.innerHeight * 0.35)),
+                behavior: "smooth",
+            });
+        });
+
+        restoreScrollPosition();
         updateCards();
+        updateScrollHint();
     })();
 </script>
 {% endblock %}
