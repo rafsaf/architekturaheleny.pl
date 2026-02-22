@@ -32,7 +32,9 @@
     {% if robots_meta %}
     <meta name="robots" content="{{ robots_meta | e }}" />
     {% endif %}
-    <link rel="stylesheet" href="/global.css?t={{ build_timestamp }}" />
+    <style>
+        /*INLINE_GLOBAL_CSS*/
+    </style>
 </head>
 
 <body>

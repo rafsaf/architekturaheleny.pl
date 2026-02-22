@@ -143,6 +143,9 @@ def process_path(
 
     if p.is_file() and p.name.endswith(".html"):
         content = environment.get_template(str(rel_src)).render(context)
+        inline_css = context.get("inline_global_css")
+        if isinstance(inline_css, str) and inline_css:
+            content = content.replace("/*INLINE_GLOBAL_CSS*/", inline_css, 1).strip()
     elif p.is_dir():
         for nested_path in p.iterdir():
             process_path(nested_path, context, environment)
@@ -322,7 +325,11 @@ def render_project_pages(environment: jinja2.Environment, context: dict) -> None
 
         destination = out / "projekty" / project["url"] / "index.html"
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(detail_template.render(detail_context))
+        rendered = detail_template.render(detail_context)
+        inline_css = context.get("inline_global_css")
+        if isinstance(inline_css, str) and inline_css:
+            rendered = rendered.replace("/*INLINE_GLOBAL_CSS*/", inline_css, 1)
+        destination.write_text(rendered)
 
 
 if __name__ == "__main__":
@@ -465,11 +472,13 @@ if __name__ == "__main__":
     environment.filters["image_for_width"] = image_for_width_filter
 
     projects = load_projects()
+    inline_global_css = (site / "global.css").read_text()
     context = {
         "build_timestamp": int(datetime.datetime.now(datetime.UTC).timestamp()),
         "build_year": datetime.datetime.now(datetime.UTC).year,
         "site_url": site_url,
         "projects": projects,
+        "inline_global_css": inline_global_css,
     }
 
     for path in site.iterdir():
