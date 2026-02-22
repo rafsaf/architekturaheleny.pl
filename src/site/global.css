@@ -269,6 +269,47 @@ a {
     opacity: 1;
 }
 
+.project-videos {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.project-video-shell {
+    position: relative;
+    border: 1px solid var(--border);
+    background: #0b0b0b;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+}
+
+.project-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+.project-video-duration {
+    position: absolute;
+    right: 0.55rem;
+    bottom: 0.55rem;
+    z-index: 2;
+    padding: 0.18rem 0.4rem;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    border-radius: 0.2rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.project-video-duration.is-visible {
+    opacity: 1;
+}
+
 .project-images {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

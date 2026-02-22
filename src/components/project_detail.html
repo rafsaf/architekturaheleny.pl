@@ -71,6 +71,20 @@
         </div>
         {% endif %}
 
+        {% if project.videos %}
+        <div class="project-videos">
+            {% for video in project.videos %}
+            <div class="project-video-shell">
+                <video class="project-video" controls preload="metadata" playsinline data-project-video>
+                    <source src="{{ (video.asset_path or '') | asset_url }}" type="{{ video.type or 'video/mp4' }}" />
+                    Twoja przeglądarka nie wspiera odtwarzania wideo.
+                </video>
+                <span class="project-video-duration" data-project-video-duration aria-live="polite"></span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {% if project.other_images %}
         <div class="project-images">
             {% for image in project.other_images %}
@@ -135,6 +149,46 @@
     }
 
     const textToggleButton = document.querySelector("[data-project-text-toggle]");
+
+    const formatVideoDuration = (seconds) => {
+        if (!Number.isFinite(seconds) || seconds < 0) {
+            return "";
+        }
+
+        const totalSeconds = Math.round(seconds);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const secs = totalSeconds % 60;
+
+        if (hours > 0) {
+            return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        }
+
+        return `${minutes}:${String(secs).padStart(2, "0")}`;
+    };
+
+    for (const shell of document.querySelectorAll(".project-video-shell")) {
+        const video = shell.querySelector("[data-project-video]");
+        const durationLabel = shell.querySelector("[data-project-video-duration]");
+        if (!video || !durationLabel) {
+            continue;
+        }
+
+        const setDuration = () => {
+            const formatted = formatVideoDuration(video.duration);
+            if (!formatted) {
+                return;
+            }
+            durationLabel.textContent = formatted;
+            durationLabel.classList.add("is-visible");
+        };
+
+        if (video.readyState >= 1) {
+            setDuration();
+        } else {
+            video.addEventListener("loadedmetadata", setDuration, { once: true });
+        }
+    }
 
     if (textToggleButton) {
         const desktopQuery = window.matchMedia("(min-width: 900px)");

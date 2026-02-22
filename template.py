@@ -171,6 +171,9 @@ def load_projects() -> list[dict]:
     other_relations = load_json(
         cms_data_dir / "items" / "architekturahelenypl_post_files_1.json"
     ).get("data", [])
+    video_relations = load_json(
+        cms_data_dir / "items" / "architekturahelenypl_post_files_2.json"
+    ).get("data", [])
     files_map = load_json(cms_data_dir / "files_index.json")
 
     relation_by_post: dict[int, list[dict]] = {}
@@ -186,6 +189,13 @@ def load_projects() -> list[dict]:
         if post_id is None:
             continue
         other_relation_by_post.setdefault(post_id, []).append(relation)
+
+    video_relation_by_post: dict[int, list[dict]] = {}
+    for relation in video_relations:
+        post_id = relation.get("architekturahelenypl_post_id")
+        if post_id is None:
+            continue
+        video_relation_by_post.setdefault(post_id, []).append(relation)
 
     projects: list[dict] = []
     for post in posts:
@@ -204,6 +214,10 @@ def load_projects() -> list[dict]:
         )
         sorted_other_relations = sorted(
             other_relation_by_post.get(post_id, []),
+            key=relation_sort_key,
+        )
+        sorted_video_relations = sorted(
+            video_relation_by_post.get(post_id, []),
             key=relation_sort_key,
         )
 
@@ -239,6 +253,18 @@ def load_projects() -> list[dict]:
             used_ids.add(str(file_id))
             other_images.append(file_data)
 
+        videos: list[dict] = []
+        for relation in sorted_video_relations:
+            file_id = relation.get("directus_files_id")
+            if not file_id:
+                continue
+            file_data = files_map.get(str(file_id))
+            if not file_data:
+                continue
+            if not str(file_data.get("type") or "").startswith("video/"):
+                continue
+            videos.append(file_data)
+
         cover_image = main_image or (carousel_images[0] if carousel_images else None)
         if not cover_image and other_images:
             cover_image = other_images[0]
@@ -267,6 +293,7 @@ def load_projects() -> list[dict]:
                 "main_image": main_image,
                 "carousel_images": carousel_images,
                 "other_images": other_images,
+                "videos": videos,
             }
         )
 

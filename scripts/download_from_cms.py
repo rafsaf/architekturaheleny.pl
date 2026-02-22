@@ -17,6 +17,7 @@ COLLECTIONS = [
     "architekturahelenypl_post",
     "architekturahelenypl_post_files",
     "architekturahelenypl_post_files_1",
+    "architekturahelenypl_post_files_2",
 ]
 
 
@@ -150,6 +151,7 @@ def collect_file_ids_for_published_posts(payloads: dict[str, dict]) -> set[str]:
     for collection_name in (
         "architekturahelenypl_post_files",
         "architekturahelenypl_post_files_1",
+        "architekturahelenypl_post_files_2",
     ):
         relations = payloads.get(collection_name, {}).get("data", [])
         for relation in relations:
