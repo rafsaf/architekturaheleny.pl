@@ -329,6 +329,96 @@ if __name__ == "__main__":
 
         return urllib.parse.quote(string_value, safe="/-._~")
 
+    def _responsive_candidates(image: dict | None) -> list[tuple[int, str]]:
+        if not isinstance(image, dict):
+            return []
+
+        candidates: list[tuple[int, str]] = []
+        responsive_paths = image.get("responsive_asset_paths")
+
+        if isinstance(responsive_paths, dict):
+            for width_key, path in responsive_paths.items():
+                if not path:
+                    continue
+                try:
+                    width = int(width_key)
+                except TypeError, ValueError:
+                    continue
+                candidates.append((width, str(path)))
+
+        if candidates:
+            candidates.sort(key=lambda item: item[0])
+            return candidates
+
+        mobile = image.get("mobile_asset_path") or image.get("asset_path")
+        desktop = image.get("desktop_asset_path") or image.get("asset_path")
+        if mobile:
+            candidates.append((900, str(mobile)))
+        if desktop:
+            candidates.append((1800, str(desktop)))
+
+        if candidates:
+            dedup: dict[int, str] = {}
+            for width, path in candidates:
+                dedup[width] = path
+            return sorted(dedup.items(), key=lambda item: item[0])
+
+        asset_path = image.get("asset_path")
+        if asset_path:
+            width = image.get("width")
+            if not isinstance(width, int):
+                try:
+                    width = int(width)
+                except TypeError, ValueError:
+                    width = 1000
+            candidates.append((max(1, width), str(asset_path)))
+
+        return candidates
+
+    def image_default_src_filter(image: dict | None) -> str:
+        candidates = _responsive_candidates(image)
+        if candidates:
+            return candidates[-1][1]
+
+        if not isinstance(image, dict):
+            return ""
+
+        for key in (
+            "largest_asset_path",
+            "desktop_asset_path",
+            "asset_path",
+            "mobile_asset_path",
+            "placeholder_asset_path",
+        ):
+            value = image.get(key)
+            if value:
+                return str(value)
+        return ""
+
+    def image_srcset_filter(image: dict | None) -> str:
+        candidates = _responsive_candidates(image)
+        if not candidates:
+            return ""
+        return ", ".join(
+            f"{asset_url_filter(path)} {width}w" for width, path in candidates
+        )
+
+    def image_for_width_filter(image: dict | None, target_width: int) -> str:
+        candidates = _responsive_candidates(image)
+        if not candidates:
+            return image_default_src_filter(image)
+
+        try:
+            target = int(target_width)
+        except TypeError, ValueError:
+            target = candidates[-1][0]
+
+        eligible = [item for item in candidates if item[0] <= target]
+        if eligible:
+            return eligible[-1][1]
+
+        return candidates[0][1]
+
     def markdown_filter(content: str) -> str:
         markdown_converter = markdown.Markdown(
             extensions=[
@@ -343,6 +433,9 @@ if __name__ == "__main__":
 
     environment.filters["markdown"] = markdown_filter
     environment.filters["asset_url"] = asset_url_filter
+    environment.filters["image_default_src"] = image_default_src_filter
+    environment.filters["image_srcset"] = image_srcset_filter
+    environment.filters["image_for_width"] = image_for_width_filter
 
     projects = load_projects()
     context = {

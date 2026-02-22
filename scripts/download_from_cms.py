@@ -4,6 +4,7 @@ import pathlib
 import re
 import shutil
 import hashlib
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -36,11 +37,9 @@ REQUEST_HEADERS = {
     "Authorization": f"Bearer {CMS_TOKEN}",
 }
 
-IMAGE_VARIANTS = {
-    "placeholder": {"width": 24, "quality": 1, "format": "avif"},
-    "mobile": {"width": 900, "quality": 65, "format": "avif"},
-    "desktop": {"width": 1800, "quality": 85, "format": "avif"},
-}
+PLACEHOLDER_VARIANT = {"width": 24, "quality": 1, "format": "avif"}
+RESPONSIVE_IMAGE_WIDTHS = [480, 800, 1000, 1200, 1600, 2000]
+RETRY_DELAYS_SECONDS = (1, 5)
 
 
 UUID_PATTERN = re.compile(
@@ -71,17 +70,53 @@ def sanitize_download_filename(filename_download: str | None) -> str:
     return f"{stem}{suffix}"
 
 
+def should_retry_http_error(error: urllib.error.HTTPError) -> bool:
+    return error.code in {408, 429} or 500 <= error.code <= 599
+
+
 def fetch_json(url: str) -> dict:
     request = urllib.request.Request(url, headers=REQUEST_HEADERS)
-    with urllib.request.urlopen(request) as response:
-        payload = response.read().decode("utf-8")
-    return json.loads(payload)
+
+    for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
+        try:
+            with urllib.request.urlopen(request) as response:
+                payload = response.read().decode("utf-8")
+            return json.loads(payload)
+        except urllib.error.HTTPError as error:
+            if attempt < len(RETRY_DELAYS_SECONDS) and should_retry_http_error(error):
+                time.sleep(RETRY_DELAYS_SECONDS[attempt])
+                continue
+            raise
+        except urllib.error.URLError, TimeoutError, ConnectionError:
+            if attempt < len(RETRY_DELAYS_SECONDS):
+                time.sleep(RETRY_DELAYS_SECONDS[attempt])
+                continue
+            raise
+
+    raise RuntimeError("Failed to fetch JSON after retries")
 
 
 def download_binary(url: str, destination: pathlib.Path) -> None:
     request = urllib.request.Request(url, headers=REQUEST_HEADERS)
-    with urllib.request.urlopen(request) as response:
-        content = response.read()
+
+    for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
+        try:
+            with urllib.request.urlopen(request) as response:
+                content = response.read()
+            break
+        except urllib.error.HTTPError as error:
+            if attempt < len(RETRY_DELAYS_SECONDS) and should_retry_http_error(error):
+                time.sleep(RETRY_DELAYS_SECONDS[attempt])
+                continue
+            raise
+        except urllib.error.URLError, TimeoutError, ConnectionError:
+            if attempt < len(RETRY_DELAYS_SECONDS):
+                time.sleep(RETRY_DELAYS_SECONDS[attempt])
+                continue
+            raise
+    else:
+        raise RuntimeError("Failed to download binary after retries")
+
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(content)
 
@@ -173,6 +208,31 @@ def get_variant_filename(
     return f"{file_id}-{short_hash}__{stem}-{variant}.{extension}"
 
 
+def parse_width(value) -> int | None:
+    if isinstance(value, int) and value > 0:
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def pick_variant_path(variants: dict[int, str], target_width: int) -> str:
+    if not variants:
+        return ""
+
+    eligible = [width for width in variants if width <= target_width]
+    if eligible:
+        return variants[max(eligible)]
+
+    return variants[min(variants)]
+
+
+def quality_for_width(width: int) -> int:
+    if width >= 1200:
+        return 85
+    return 65
+
+
 def build_asset_url(file_id: str, params: dict | None = None) -> str:
     if not params:
         return f"{CMS_BASE_URL}/assets/{file_id}"
@@ -228,27 +288,76 @@ def main() -> None:
 
         variant_paths: dict[str, str] = {}
         variant_formats: dict[str, str] = {}
+        responsive_asset_paths: dict[int, str] = {}
+        original_width = parse_width(meta_data.get("width"))
 
         if file_type.startswith("image/"):
-            for variant_name, variant_params in IMAGE_VARIANTS.items():
+            placeholder_params = get_effective_variant_params(
+                PLACEHOLDER_VARIANT, meta_data
+            )
+            placeholder_filename = get_variant_filename(
+                file_id=file_id,
+                file_meta=meta_data,
+                variant="placeholder",
+                extension="avif",
+            )
+            placeholder_path = CMS_DATA_DIR / "assets" / placeholder_filename
+
+            try:
+                download_binary(
+                    build_asset_url(file_id=file_id, params=placeholder_params),
+                    placeholder_path,
+                )
+                variant_paths["placeholder"] = f"/cms_assets/{placeholder_filename}"
+                variant_formats["placeholder"] = "avif"
+            except urllib.error.HTTPError:
+                fallback_filename = get_variant_filename(
+                    file_id=file_id,
+                    file_meta=meta_data,
+                    variant="placeholder",
+                    extension=original_extension,
+                )
+                fallback_path = CMS_DATA_DIR / "assets" / fallback_filename
+                fallback_params = {
+                    key: value
+                    for key, value in placeholder_params.items()
+                    if key != "format"
+                }
+                download_binary(
+                    build_asset_url(file_id=file_id, params=fallback_params),
+                    fallback_path,
+                )
+                variant_paths["placeholder"] = f"/cms_assets/{fallback_filename}"
+                variant_formats["placeholder"] = "original"
+
+            for width in RESPONSIVE_IMAGE_WIDTHS:
+                if original_width and width > original_width:
+                    continue
+
+                variant_name = f"{width}w"
+                variant_params = {
+                    "width": width,
+                    "quality": quality_for_width(width),
+                    "format": "avif",
+                }
                 effective_params = get_effective_variant_params(
                     variant_params, meta_data
                 )
+
                 avif_filename = get_variant_filename(
                     file_id=file_id,
                     file_meta=meta_data,
                     variant=variant_name,
                     extension="avif",
                 )
-                avif_relative = pathlib.Path("assets") / avif_filename
-                avif_path = CMS_DATA_DIR / avif_relative
+                avif_path = CMS_DATA_DIR / "assets" / avif_filename
 
                 try:
                     download_binary(
                         build_asset_url(file_id=file_id, params=effective_params),
                         avif_path,
                     )
-                    variant_paths[variant_name] = f"/cms_assets/{avif_filename}"
+                    responsive_asset_paths[width] = f"/cms_assets/{avif_filename}"
                     variant_formats[variant_name] = "avif"
                 except urllib.error.HTTPError:
                     fallback_filename = get_variant_filename(
@@ -257,8 +366,7 @@ def main() -> None:
                         variant=variant_name,
                         extension=original_extension,
                     )
-                    fallback_relative = pathlib.Path("assets") / fallback_filename
-                    fallback_path = CMS_DATA_DIR / fallback_relative
+                    fallback_path = CMS_DATA_DIR / "assets" / fallback_filename
 
                     fallback_params = {
                         key: value
@@ -269,7 +377,58 @@ def main() -> None:
                         build_asset_url(file_id=file_id, params=fallback_params),
                         fallback_path,
                     )
-                    variant_paths[variant_name] = f"/cms_assets/{fallback_filename}"
+                    responsive_asset_paths[width] = f"/cms_assets/{fallback_filename}"
+                    variant_formats[variant_name] = "original"
+
+            if not responsive_asset_paths:
+                fallback_width = original_width or 800
+                variant_name = f"{fallback_width}w"
+                variant_params = {
+                    "width": fallback_width,
+                    "quality": quality_for_width(fallback_width),
+                    "format": "avif",
+                }
+                effective_params = get_effective_variant_params(
+                    variant_params, meta_data
+                )
+
+                avif_filename = get_variant_filename(
+                    file_id=file_id,
+                    file_meta=meta_data,
+                    variant=variant_name,
+                    extension="avif",
+                )
+                avif_path = CMS_DATA_DIR / "assets" / avif_filename
+
+                try:
+                    download_binary(
+                        build_asset_url(file_id=file_id, params=effective_params),
+                        avif_path,
+                    )
+                    responsive_asset_paths[fallback_width] = (
+                        f"/cms_assets/{avif_filename}"
+                    )
+                    variant_formats[variant_name] = "avif"
+                except urllib.error.HTTPError:
+                    fallback_filename = get_variant_filename(
+                        file_id=file_id,
+                        file_meta=meta_data,
+                        variant=variant_name,
+                        extension=original_extension,
+                    )
+                    fallback_path = CMS_DATA_DIR / "assets" / fallback_filename
+                    fallback_params = {
+                        key: value
+                        for key, value in effective_params.items()
+                        if key != "format"
+                    }
+                    download_binary(
+                        build_asset_url(file_id=file_id, params=fallback_params),
+                        fallback_path,
+                    )
+                    responsive_asset_paths[fallback_width] = (
+                        f"/cms_assets/{fallback_filename}"
+                    )
                     variant_formats[variant_name] = "original"
         else:
             fallback_relative = pathlib.Path("assets") / original_filename
@@ -279,13 +438,11 @@ def main() -> None:
             fallback_url = f"/cms_assets/{original_filename}"
             variant_paths = {
                 "placeholder": fallback_url,
-                "mobile": fallback_url,
-                "desktop": fallback_url,
             }
+            responsive_asset_paths = {800: fallback_url}
             variant_formats = {
                 "placeholder": "original",
-                "mobile": "original",
-                "desktop": "original",
+                "800w": "original",
             }
 
         unique_formats = set(variant_formats.values())
@@ -296,7 +453,13 @@ def main() -> None:
         else:
             asset_format = "mixed"
 
-        filename = pathlib.Path(variant_paths["desktop"]).name
+        sorted_widths = sorted(responsive_asset_paths)
+        largest_width = sorted_widths[-1]
+        largest_asset_path = responsive_asset_paths[largest_width]
+        filename = pathlib.Path(largest_asset_path).name
+
+        mobile_asset_path = pick_variant_path(responsive_asset_paths, 800)
+        desktop_asset_path = largest_asset_path
 
         files_index[file_id] = {
             "id": file_id,
@@ -308,10 +471,15 @@ def main() -> None:
             "type": meta_data.get("type"),
             "filesize": meta_data.get("filesize"),
             "asset_format": asset_format,
-            "asset_path": variant_paths["desktop"],
+            "asset_path": largest_asset_path,
             "placeholder_asset_path": variant_paths["placeholder"],
-            "mobile_asset_path": variant_paths["mobile"],
-            "desktop_asset_path": variant_paths["desktop"],
+            "mobile_asset_path": mobile_asset_path,
+            "desktop_asset_path": desktop_asset_path,
+            "largest_asset_path": largest_asset_path,
+            "responsive_asset_paths": {
+                str(width): path
+                for width, path in sorted(responsive_asset_paths.items())
+            },
         }
 
     (CMS_DATA_DIR / "files_index.json").write_text(
