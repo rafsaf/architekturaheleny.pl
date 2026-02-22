@@ -18,6 +18,7 @@ COLLECTIONS = [
     "architekturahelenypl_post_files",
     "architekturahelenypl_post_files_1",
     "architekturahelenypl_post_files_2",
+    "architekturahelenypl_data",
 ]
 
 

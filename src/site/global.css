@@ -34,10 +34,13 @@ a {
     padding: 1.5rem 0 3rem;
 }
 
-.page-title {
+.page-title,
+.about-text h1,
+.project-description h1 {
     margin: 0.6rem 0 1.2rem;
     font-size: clamp(1.4rem, 1.2rem + 1.2vw, 2.3rem);
     font-weight: 500;
+    color: var(--text);
 }
 
 .page-lead {
@@ -202,6 +205,8 @@ a {
 .project-description h4 {
     margin: 1.4rem 0 0.7rem;
     line-height: 1.3;
+    font-weight: 500;
+    color: var(--text);
 }
 
 .project-description ul,
@@ -338,6 +343,29 @@ a {
     max-width: 75ch;
     line-height: 1.7;
     color: var(--text);
+}
+
+.about-text h1,
+.about-text h2,
+.about-text h3,
+.about-text h4 {
+    line-height: 1.3;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.about-text h2,
+.about-text h3,
+.about-text h4 {
+    margin: 1.4rem 0 0.7rem;
+}
+
+.about-text p {
+    margin: 0 0 1rem;
+}
+
+.about-text p:last-child {
+    margin-bottom: 0;
 }
 
 .nav {

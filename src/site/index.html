@@ -1,6 +1,6 @@
 {% set seo_title = "Architektura Heleny | Projekty" %}
-{% set seo_description = "Portfolio projektów Architektura Heleny: domy, wnętrza i realizacje pokazane w
-minimalistycznej formie, z naciskiem na detal i funkcję." %}
+{% set seo_description = main_page_description or "Portfolio projektów Architektura Heleny: domy, wnętrza i realizacje
+pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
 {% set canonical_url = site_url ~ "/" %}
 {% set og_type = "website" %}
 {% set homepage_image = projects[0].cover_image if projects and projects[0].cover_image else None %}

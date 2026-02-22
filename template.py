@@ -303,6 +303,29 @@ def load_projects() -> list[dict]:
     return projects
 
 
+def load_site_content() -> dict:
+    data = load_json(cms_data_dir / "items" / "architekturahelenypl_data.json").get(
+        "data", {}
+    )
+
+    if isinstance(data, list):
+        row = data[0] if data else {}
+    elif isinstance(data, dict):
+        row = data
+    else:
+        row = {}
+
+    about_me = (row.get("about_me") or "").strip()
+    main_page_description = (row.get("main_page_description") or "").strip()
+    about_me_page_description = (row.get("about_me_page_description") or "").strip()
+
+    return {
+        "about_me": about_me,
+        "main_page_description": main_page_description,
+        "about_me_page_description": about_me_page_description,
+    }
+
+
 def render_project_pages(environment: jinja2.Environment, context: dict) -> None:
     detail_template = environment.get_template("components/project_detail.html")
 
@@ -472,12 +495,15 @@ if __name__ == "__main__":
     environment.filters["image_for_width"] = image_for_width_filter
 
     projects = load_projects()
+    site_content = load_site_content()
     inline_global_css = (site / "global.css").read_text()
     context = {
-        "build_timestamp": int(datetime.datetime.now(datetime.UTC).timestamp()),
         "build_year": datetime.datetime.now(datetime.UTC).year,
         "site_url": site_url,
         "projects": projects,
+        "about_me": site_content["about_me"],
+        "main_page_description": site_content["main_page_description"],
+        "about_me_page_description": site_content["about_me_page_description"],
         "inline_global_css": inline_global_css,
     }
 

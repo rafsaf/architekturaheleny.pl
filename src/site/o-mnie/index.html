@@ -1,25 +1,12 @@
 {% set seo_title = "Architektura Heleny | O mnie" %}
-{% set seo_description = "Poznaj Architektura Heleny: podejście projektowe, doświadczenie i sposób pracy przy tworzeniu
-funkcjonalnych, spokojnych przestrzeni." %}
+{% set seo_description = about_me_page_description or "Poznaj Architektura Heleny: podejście projektowe, doświadczenie i
+sposób pracy przy tworzeniu funkcjonalnych, spokojnych przestrzeni." %}
 {% set canonical_url = site_url ~ "/o-mnie/" %}
 {% set og_type = "profile" %}
 {% set twitter_card = "summary" %}
 {% extends "components/layout.html" %}
 {% block content %}
-<h1 class="page-title">O mnie</h1>
 <div class="about-text">
-    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin lacinia dignissim consequat. Quisque porta
-        tristique hendrerit. Aenean posuere nisi et mattis laoreet. Phasellus dapibus, elit vel lobortis vestibulum,
-        turpis sem laoreet neque, non bibendum lectus velit eu odio. Sed id mattis tortor. Praesent facilisis aliquam
-        elit, a tincidunt ex varius vel. Praesent porta iaculis nisl et molestie. Etiam vehicula eros tincidunt nunc
-        ultrices elementum non sed lorem. Proin varius sit amet nibh et vehicula. Nulla ultricies erat mollis tellus
-        varius, porta tincidunt massa volutpat. Ut a nisi nec erat maximus placerat quis nec libero.
-
-        In hac habitasse platea dictumst. Integer sapien nisi, dignissim sed finibus eget, mollis vitae sapien.
-        Suspendisse at dolor a urna aliquam tincidunt. Aliquam a tempus enim. Cras ultrices eu diam ut porta. Donec
-        viverra leo eget magna viverra finibus. Morbi non purus erat. Vestibulum imperdiet aliquam mattis. Aenean risus
-        nulla, semper sit amet ornare sed, ultricies eget tortor. Nullam sollicitudin est ultrices nibh iaculis
-        consequat. Curabitur ornare quam ac purus aliquet ultrices. Nunc porta, risus non maximus rutrum, erat purus
-        placerat justo, finibus porttitor ex ligula nec turpis.</p>
+    {{ about_me | markdown }}
 </div>
 {% endblock %}
