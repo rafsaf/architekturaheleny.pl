@@ -12,8 +12,9 @@
 </div>
 
 {% if project.main_image %}
+{% set main_image_ratio = (project.main_image.width ~ " / " ~ project.main_image.height) if project.main_image.width and project.main_image.height else "16 / 9" %}
 <div class="project-main-image image-shell"
-    style="--placeholder-image: url('{{ (project.main_image.placeholder_asset_path or project.main_image.asset_path) | asset_url }}');">
+    style="--placeholder-image: url('{{ (project.main_image.placeholder_asset_path or project.main_image.asset_path) | asset_url }}'); --image-ratio: {{ main_image_ratio }};">
     <picture>
         <source media="(max-width: 479px)" srcset="{{ (project.main_image | image_for_width(480)) | asset_url }}" />
         <source media="(max-width: 799px)" srcset="{{ (project.main_image | image_for_width(800)) | asset_url }}" />
@@ -97,8 +98,9 @@
         {% if project.other_images %}
         <div class="project-images">
             {% for image in project.other_images %}
+            {% set image_ratio = (image.width ~ " / " ~ image.height) if image.width and image.height else "16 / 9" %}
             <div class="image-shell"
-                style="--placeholder-image: url('{{ (image.placeholder_asset_path or image.asset_path) | asset_url }}');">
+                style="--placeholder-image: url('{{ (image.placeholder_asset_path or image.asset_path) | asset_url }}'); --image-ratio: {{ image_ratio }};">
                 <picture>
                     <source media="(max-width: 479px)" srcset="{{ (image | image_for_width(480)) | asset_url }}" />
                     <source media="(max-width: 799px)" srcset="{{ (image | image_for_width(800)) | asset_url }}" />
