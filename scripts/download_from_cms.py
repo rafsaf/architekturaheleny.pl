@@ -4,8 +4,6 @@ import pathlib
 import re
 import shutil
 import hashlib
-import time
-import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -13,6 +11,7 @@ from dotenv import load_dotenv
 
 
 CMS_BASE_URL = "https://cms.rafsaf.pl"
+CMS_OAS_PATH = "/server/specs/oas"
 COLLECTIONS = [
     "architekturahelenypl_post",
     "architekturahelenypl_post_files",
@@ -41,7 +40,6 @@ REQUEST_HEADERS = {
 
 PLACEHOLDER_VARIANT = {"width": 24, "quality": 1, "format": "avif"}
 RESPONSIVE_IMAGE_WIDTHS = [480, 800, 1000, 1200, 1600, 2000]
-RETRY_DELAYS_SECONDS = (1, 5)
 
 
 UUID_PATTERN = re.compile(
@@ -58,66 +56,25 @@ def sanitize_filename_stem(stem: str) -> str:
     return cleaned or "file"
 
 
-def sanitize_download_filename(filename_download: str | None) -> str:
-    if not filename_download:
-        return ""
-
+def sanitize_download_filename(filename_download: str) -> str:
     safe_name = pathlib.Path(filename_download).name
-    if not safe_name:
-        return ""
-
     parsed = pathlib.Path(safe_name)
     stem = sanitize_filename_stem(parsed.stem)
     suffix = re.sub(r"[^0-9A-Za-z.]", "", parsed.suffix.lower())
     return f"{stem}{suffix}"
 
 
-def should_retry_http_error(error: urllib.error.HTTPError) -> bool:
-    return error.code in {408, 429} or 500 <= error.code <= 599
-
-
 def fetch_json(url: str) -> dict:
     request = urllib.request.Request(url, headers=REQUEST_HEADERS)
-
-    for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
-        try:
-            with urllib.request.urlopen(request) as response:
-                payload = response.read().decode("utf-8")
-            return json.loads(payload)
-        except urllib.error.HTTPError as error:
-            if attempt < len(RETRY_DELAYS_SECONDS) and should_retry_http_error(error):
-                time.sleep(RETRY_DELAYS_SECONDS[attempt])
-                continue
-            raise
-        except urllib.error.URLError, TimeoutError, ConnectionError:
-            if attempt < len(RETRY_DELAYS_SECONDS):
-                time.sleep(RETRY_DELAYS_SECONDS[attempt])
-                continue
-            raise
-
-    raise RuntimeError("Failed to fetch JSON after retries")
+    with urllib.request.urlopen(request) as response:
+        payload = response.read().decode("utf-8")
+    return json.loads(payload)
 
 
 def download_binary(url: str, destination: pathlib.Path) -> None:
     request = urllib.request.Request(url, headers=REQUEST_HEADERS)
-
-    for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
-        try:
-            with urllib.request.urlopen(request) as response:
-                content = response.read()
-            break
-        except urllib.error.HTTPError as error:
-            if attempt < len(RETRY_DELAYS_SECONDS) and should_retry_http_error(error):
-                time.sleep(RETRY_DELAYS_SECONDS[attempt])
-                continue
-            raise
-        except urllib.error.URLError, TimeoutError, ConnectionError:
-            if attempt < len(RETRY_DELAYS_SECONDS):
-                time.sleep(RETRY_DELAYS_SECONDS[attempt])
-                continue
-            raise
-    else:
-        raise RuntimeError("Failed to download binary after retries")
+    with urllib.request.urlopen(request) as response:
+        content = response.read()
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(content)
@@ -132,21 +89,26 @@ def ensure_directories() -> None:
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def download_oas_spec() -> None:
+    oas_url = f"{CMS_BASE_URL}{CMS_OAS_PATH}"
+    oas_payload = fetch_json(oas_url)
+    (CMS_DATA_DIR / "server_specs_oas.json").write_text(
+        json.dumps(oas_payload, indent=2, ensure_ascii=False)
+    )
+
+
 def collect_file_ids_for_published_posts(payloads: dict[str, dict]) -> set[str]:
     file_ids: set[str] = set()
 
     posts = payloads.get("architekturahelenypl_post", {}).get("data", [])
-    published_post_ids = {
-        post.get("id")
-        for post in posts
-        if post.get("status") == "published" and post.get("id") is not None
-    }
+    published_post_ids = {post["id"] for post in posts if post["status"] == "published"}
 
     for post in posts:
-        if post.get("id") not in published_post_ids:
+        post_id = post["id"]
+        if post_id not in published_post_ids:
             continue
         main_page_image = post.get("main_page_image")
-        if isinstance(main_page_image, str) and UUID_PATTERN.match(main_page_image):
+        if main_page_image and UUID_PATTERN.match(main_page_image):
             file_ids.add(main_page_image)
 
     for collection_name in (
@@ -161,9 +123,7 @@ def collect_file_ids_for_published_posts(payloads: dict[str, dict]) -> set[str]:
                 continue
 
             directus_file_id = relation.get("directus_files_id")
-            if isinstance(directus_file_id, str) and UUID_PATTERN.match(
-                directus_file_id
-            ):
+            if directus_file_id and UUID_PATTERN.match(directus_file_id):
                 file_ids.add(directus_file_id)
 
     return file_ids
@@ -171,27 +131,16 @@ def collect_file_ids_for_published_posts(payloads: dict[str, dict]) -> set[str]:
 
 def get_asset_filename(file_id: str, file_meta: dict) -> str:
     short_hash = hashlib.md5(file_id.encode("utf-8")).hexdigest()[:8]
-    default_name = file_id
-    filename_download = file_meta.get("filename_download")
-    if not filename_download:
-        return f"{default_name}-{short_hash}"
-
+    filename_download = file_meta["filename_download"]
     safe_filename = sanitize_download_filename(filename_download)
-    if not safe_filename:
-        return f"{default_name}-{short_hash}"
     return f"{file_id}-{short_hash}__{safe_filename}"
 
 
 def get_avif_asset_filename(file_id: str, file_meta: dict) -> str:
     short_hash = hashlib.md5(file_id.encode("utf-8")).hexdigest()[:8]
-    filename_download = file_meta.get("filename_download")
-    if not filename_download:
-        return f"{file_id}-{short_hash}.avif"
-
+    filename_download = file_meta["filename_download"]
     safe_filename = sanitize_download_filename(filename_download)
     stem = pathlib.Path(safe_filename).stem
-    if not stem:
-        return f"{file_id}-{short_hash}.avif"
     return f"{file_id}-{short_hash}__{stem}.avif"
 
 
@@ -199,24 +148,10 @@ def get_variant_filename(
     file_id: str, file_meta: dict, variant: str, extension: str
 ) -> str:
     short_hash = hashlib.md5(f"{file_id}:{variant}".encode("utf-8")).hexdigest()[:8]
-    filename_download = file_meta.get("filename_download")
-    if not filename_download:
-        return f"{file_id}-{short_hash}-{variant}.{extension}"
-
+    filename_download = file_meta["filename_download"]
     safe_filename = sanitize_download_filename(filename_download)
     stem = pathlib.Path(safe_filename).stem
-    if not stem:
-        return f"{file_id}-{short_hash}-{variant}.{extension}"
-
     return f"{file_id}-{short_hash}__{stem}-{variant}.{extension}"
-
-
-def parse_width(value) -> int | None:
-    if isinstance(value, int) and value > 0:
-        return value
-    if isinstance(value, str) and value.isdigit():
-        return int(value)
-    return None
 
 
 def pick_variant_path(variants: dict[int, str], target_width: int) -> str:
@@ -246,21 +181,17 @@ def build_asset_url(file_id: str, params: dict | None = None) -> str:
 
 def get_effective_variant_params(variant_params: dict, file_meta: dict) -> dict:
     params = dict(variant_params)
-    original_width = file_meta.get("width")
+    original_width = file_meta["width"]
 
-    if isinstance(original_width, str) and original_width.isdigit():
-        original_width = int(original_width)
-
-    if isinstance(original_width, int) and original_width > 0 and "width" in params:
-        requested_width = params.get("width")
-        if isinstance(requested_width, int) and requested_width > original_width:
-            params["width"] = original_width
+    if "width" in params and params["width"] > original_width:
+        params["width"] = original_width
 
     return params
 
 
 def main() -> None:
     ensure_directories()
+    download_oas_spec()
 
     payloads: dict[str, dict] = {}
     for collection in COLLECTIONS:
@@ -279,20 +210,19 @@ def main() -> None:
     for file_id in sorted(all_file_ids):
         meta_url = f"{CMS_BASE_URL}/files/{file_id}"
         meta_payload = fetch_json(meta_url)
-        meta_data = meta_payload.get("data", {})
+        meta_data = meta_payload["data"]
 
         (FILES_META_DIR / f"{file_id}.json").write_text(
             json.dumps(meta_payload, indent=2, ensure_ascii=False)
         )
 
-        file_type = meta_data.get("type") or ""
+        file_type = meta_data["type"]
         original_filename = get_asset_filename(file_id=file_id, file_meta=meta_data)
-        original_extension = pathlib.Path(original_filename).suffix.lstrip(".") or "bin"
 
         variant_paths: dict[str, str] = {}
         variant_formats: dict[str, str] = {}
         responsive_asset_paths: dict[int, str] = {}
-        original_width = parse_width(meta_data.get("width"))
+        original_width = meta_data["width"]
 
         if file_type.startswith("image/"):
             placeholder_params = get_effective_variant_params(
@@ -305,36 +235,15 @@ def main() -> None:
                 extension="avif",
             )
             placeholder_path = CMS_DATA_DIR / "assets" / placeholder_filename
-
-            try:
-                download_binary(
-                    build_asset_url(file_id=file_id, params=placeholder_params),
-                    placeholder_path,
-                )
-                variant_paths["placeholder"] = f"/cms_assets/{placeholder_filename}"
-                variant_formats["placeholder"] = "avif"
-            except urllib.error.HTTPError:
-                fallback_filename = get_variant_filename(
-                    file_id=file_id,
-                    file_meta=meta_data,
-                    variant="placeholder",
-                    extension=original_extension,
-                )
-                fallback_path = CMS_DATA_DIR / "assets" / fallback_filename
-                fallback_params = {
-                    key: value
-                    for key, value in placeholder_params.items()
-                    if key != "format"
-                }
-                download_binary(
-                    build_asset_url(file_id=file_id, params=fallback_params),
-                    fallback_path,
-                )
-                variant_paths["placeholder"] = f"/cms_assets/{fallback_filename}"
-                variant_formats["placeholder"] = "original"
+            download_binary(
+                build_asset_url(file_id=file_id, params=placeholder_params),
+                placeholder_path,
+            )
+            variant_paths["placeholder"] = f"/cms_assets/{placeholder_filename}"
+            variant_formats["placeholder"] = "avif"
 
             for width in RESPONSIVE_IMAGE_WIDTHS:
-                if original_width and width > original_width:
+                if width > original_width:
                     continue
 
                 variant_name = f"{width}w"
@@ -354,37 +263,15 @@ def main() -> None:
                     extension="avif",
                 )
                 avif_path = CMS_DATA_DIR / "assets" / avif_filename
-
-                try:
-                    download_binary(
-                        build_asset_url(file_id=file_id, params=effective_params),
-                        avif_path,
-                    )
-                    responsive_asset_paths[width] = f"/cms_assets/{avif_filename}"
-                    variant_formats[variant_name] = "avif"
-                except urllib.error.HTTPError:
-                    fallback_filename = get_variant_filename(
-                        file_id=file_id,
-                        file_meta=meta_data,
-                        variant=variant_name,
-                        extension=original_extension,
-                    )
-                    fallback_path = CMS_DATA_DIR / "assets" / fallback_filename
-
-                    fallback_params = {
-                        key: value
-                        for key, value in effective_params.items()
-                        if key != "format"
-                    }
-                    download_binary(
-                        build_asset_url(file_id=file_id, params=fallback_params),
-                        fallback_path,
-                    )
-                    responsive_asset_paths[width] = f"/cms_assets/{fallback_filename}"
-                    variant_formats[variant_name] = "original"
+                download_binary(
+                    build_asset_url(file_id=file_id, params=effective_params),
+                    avif_path,
+                )
+                responsive_asset_paths[width] = f"/cms_assets/{avif_filename}"
+                variant_formats[variant_name] = "avif"
 
             if not responsive_asset_paths:
-                fallback_width = original_width or 800
+                fallback_width = original_width
                 variant_name = f"{fallback_width}w"
                 variant_params = {
                     "width": fallback_width,
@@ -402,37 +289,12 @@ def main() -> None:
                     extension="avif",
                 )
                 avif_path = CMS_DATA_DIR / "assets" / avif_filename
-
-                try:
-                    download_binary(
-                        build_asset_url(file_id=file_id, params=effective_params),
-                        avif_path,
-                    )
-                    responsive_asset_paths[fallback_width] = (
-                        f"/cms_assets/{avif_filename}"
-                    )
-                    variant_formats[variant_name] = "avif"
-                except urllib.error.HTTPError:
-                    fallback_filename = get_variant_filename(
-                        file_id=file_id,
-                        file_meta=meta_data,
-                        variant=variant_name,
-                        extension=original_extension,
-                    )
-                    fallback_path = CMS_DATA_DIR / "assets" / fallback_filename
-                    fallback_params = {
-                        key: value
-                        for key, value in effective_params.items()
-                        if key != "format"
-                    }
-                    download_binary(
-                        build_asset_url(file_id=file_id, params=fallback_params),
-                        fallback_path,
-                    )
-                    responsive_asset_paths[fallback_width] = (
-                        f"/cms_assets/{fallback_filename}"
-                    )
-                    variant_formats[variant_name] = "original"
+                download_binary(
+                    build_asset_url(file_id=file_id, params=effective_params),
+                    avif_path,
+                )
+                responsive_asset_paths[fallback_width] = f"/cms_assets/{avif_filename}"
+                variant_formats[variant_name] = "avif"
         else:
             fallback_relative = pathlib.Path("assets") / original_filename
             fallback_path = CMS_DATA_DIR / fallback_relative
@@ -467,12 +329,12 @@ def main() -> None:
         files_index[file_id] = {
             "id": file_id,
             "filename": filename,
-            "filename_download": meta_data.get("filename_download"),
-            "title": meta_data.get("title"),
-            "width": meta_data.get("width"),
-            "height": meta_data.get("height"),
-            "type": meta_data.get("type"),
-            "filesize": meta_data.get("filesize"),
+            "filename_download": meta_data["filename_download"],
+            "title": meta_data["title"],
+            "width": meta_data["width"],
+            "height": meta_data["height"],
+            "type": meta_data["type"],
+            "filesize": meta_data["filesize"],
             "asset_format": asset_format,
             "asset_path": largest_asset_path,
             "placeholder_asset_path": variant_paths["placeholder"],
