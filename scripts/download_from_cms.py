@@ -39,7 +39,14 @@ REQUEST_HEADERS = {
 }
 
 PLACEHOLDER_VARIANT = {"width": 24, "quality": 1, "format": "avif"}
-RESPONSIVE_IMAGE_WIDTHS = [480, 800, 1000, 1200, 1600, 2000]
+RESPONSIVE_IMAGE_WIDTHS_QUALITY = [
+    (480, 65),
+    (800, 65),
+    (1000, 65),
+    (1200, 85),
+    (1600, 85),
+    (2000, 85),
+]
 
 
 UUID_PATTERN = re.compile(
@@ -165,12 +172,6 @@ def pick_variant_path(variants: dict[int, str], target_width: int) -> str:
     return variants[min(variants)]
 
 
-def quality_for_width(width: int) -> int:
-    if width >= 1200:
-        return 85
-    return 65
-
-
 def build_asset_url(file_id: str, params: dict | None = None) -> str:
     if not params:
         return f"{CMS_BASE_URL}/assets/{file_id}"
@@ -242,14 +243,14 @@ def main() -> None:
             variant_paths["placeholder"] = f"/cms_assets/{placeholder_filename}"
             variant_formats["placeholder"] = "avif"
 
-            for width in RESPONSIVE_IMAGE_WIDTHS:
+            for width, quality in RESPONSIVE_IMAGE_WIDTHS_QUALITY:
                 if width > original_width:
                     continue
 
                 variant_name = f"{width}w"
                 variant_params = {
                     "width": width,
-                    "quality": quality_for_width(width),
+                    "quality": quality,
                     "format": "avif",
                 }
                 effective_params = get_effective_variant_params(
@@ -268,32 +269,6 @@ def main() -> None:
                     avif_path,
                 )
                 responsive_asset_paths[width] = f"/cms_assets/{avif_filename}"
-                variant_formats[variant_name] = "avif"
-
-            if not responsive_asset_paths:
-                fallback_width = original_width
-                variant_name = f"{fallback_width}w"
-                variant_params = {
-                    "width": fallback_width,
-                    "quality": quality_for_width(fallback_width),
-                    "format": "avif",
-                }
-                effective_params = get_effective_variant_params(
-                    variant_params, meta_data
-                )
-
-                avif_filename = get_variant_filename(
-                    file_id=file_id,
-                    file_meta=meta_data,
-                    variant=variant_name,
-                    extension="avif",
-                )
-                avif_path = CMS_DATA_DIR / "assets" / avif_filename
-                download_binary(
-                    build_asset_url(file_id=file_id, params=effective_params),
-                    avif_path,
-                )
-                responsive_asset_paths[fallback_width] = f"/cms_assets/{avif_filename}"
                 variant_formats[variant_name] = "avif"
         else:
             fallback_relative = pathlib.Path("assets") / original_filename
