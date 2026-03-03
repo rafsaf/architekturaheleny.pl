@@ -4,10 +4,17 @@ import pathlib
 import re
 import shutil
 import hashlib
+import urllib.error
 import urllib.parse
 import urllib.request
 
 from dotenv import load_dotenv
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 
 CMS_BASE_URL = "https://cms.rafsaf.pl"
@@ -71,6 +78,12 @@ def sanitize_download_filename(filename_download: str) -> str:
     return f"{stem}{suffix}"
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((urllib.error.URLError, urllib.error.HTTPError)),
+    reraise=True,
+)
 def fetch_json(url: str) -> dict:
     request = urllib.request.Request(url, headers=REQUEST_HEADERS)
     with urllib.request.urlopen(request) as response:
@@ -78,6 +91,12 @@ def fetch_json(url: str) -> dict:
     return json.loads(payload)
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((urllib.error.URLError, urllib.error.HTTPError)),
+    reraise=True,
+)
 def download_binary(url: str, destination: pathlib.Path) -> None:
     request = urllib.request.Request(url, headers=REQUEST_HEADERS)
     with urllib.request.urlopen(request) as response:
