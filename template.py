@@ -121,14 +121,14 @@ def write_sitemap_and_robots(projects: list[dict], build_date: str) -> None:
 
 
 def normalize_url_path(url: str) -> str:
-    return str(url or "").strip().strip("/")
+    return str(url).strip().strip("/")
 
 
 def relation_sort_key(relation: dict) -> tuple:
     sort_number = relation.get("sort_number")
     relation_id = relation.get("id")
 
-    if isinstance(sort_number, (int, float)):
+    if sort_number is not None:
         return (0, sort_number, relation_id or 0)
 
     return (1, 0, relation_id or 0)
@@ -146,7 +146,7 @@ def process_path(
     if p.is_file() and p.name.endswith(".html"):
         content = environment.get_template(str(rel_src)).render(context)
         inline_css = context.get("inline_global_css")
-        if isinstance(inline_css, str) and inline_css:
+        if inline_css:
             content = content.replace("/*INLINE_GLOBAL_CSS*/", inline_css, 1).strip()
     elif p.is_dir():
         for nested_path in p.iterdir():
@@ -204,14 +204,13 @@ def load_projects() -> list[dict]:
 
     projects: list[dict] = []
     for post in posts:
-        if post.get("status") != "published":
+        post_status = str(post["status"]).strip()
+        if post_status != "published":
             continue
 
-        title = (post.get("title") or "Bez tytułu").strip()
-        post_id = post.get("id")
-        project_url = normalize_url_path(post.get("url"))
-        if not project_url:
-            continue
+        title = str(post["title"]).strip()
+        post_id = post["id"]
+        project_url = normalize_url_path(str(post["url"]).strip())
 
         sorted_carousel_relations = sorted(
             relation_by_post.get(post_id, []),
@@ -266,7 +265,7 @@ def load_projects() -> list[dict]:
             file_data = files_map.get(str(file_id))
             if not file_data:
                 continue
-            if not str(file_data.get("type") or "").startswith("video/"):
+            if not str(file_data["type"]).startswith("video/"):
                 continue
             videos.append(file_data)
 
@@ -310,12 +309,7 @@ def load_site_content() -> dict:
         "data", {}
     )
 
-    if isinstance(data, list):
-        row = data[0] if data else {}
-    elif isinstance(data, dict):
-        row = data
-    else:
-        row = {}
+    row = data
 
     about_me = (row.get("about_me") or "").strip()
     main_page_description = (row.get("main_page_description") or "").strip()
@@ -352,7 +346,7 @@ def render_project_pages(environment: jinja2.Environment, context: dict) -> None
         destination.parent.mkdir(parents=True, exist_ok=True)
         rendered = detail_template.render(detail_context)
         inline_css = context.get("inline_global_css")
-        if isinstance(inline_css, str) and inline_css:
+        if inline_css:
             rendered = rendered.replace("/*INLINE_GLOBAL_CSS*/", inline_css, 1)
         destination.write_text(rendered)
 
@@ -395,21 +389,15 @@ if __name__ == "__main__":
         return urllib.parse.quote(string_value, safe="/-._~")
 
     def _responsive_candidates(image: dict | None) -> list[tuple[int, str]]:
-        if not isinstance(image, dict):
+        if not image:
             return []
 
         candidates: list[tuple[int, str]] = []
-        responsive_paths = image.get("responsive_asset_paths")
+        responsive_paths = image["responsive_asset_paths"]
 
-        if isinstance(responsive_paths, dict):
-            for width_key, path in responsive_paths.items():
-                if not path:
-                    continue
-                try:
-                    width = int(width_key)
-                except TypeError, ValueError:
-                    continue
-                candidates.append((width, str(path)))
+        for width_key, path in responsive_paths.items():
+            width = int(width_key)
+            candidates.append((width, str(path)))
 
         if candidates:
             candidates.sort(key=lambda item: item[0])
@@ -430,23 +418,18 @@ if __name__ == "__main__":
 
         asset_path = image.get("asset_path")
         if asset_path:
-            width = image.get("width")
-            if not isinstance(width, int):
-                try:
-                    width = int(width)
-                except TypeError, ValueError:
-                    width = 1000
+            width = image["width"]
             candidates.append((max(1, width), str(asset_path)))
 
         return candidates
 
     def image_default_src_filter(image: dict | None) -> str:
+        if not image:
+            return ""
+
         candidates = _responsive_candidates(image)
         if candidates:
             return candidates[-1][1]
-
-        if not isinstance(image, dict):
-            return ""
 
         for key in (
             "largest_asset_path",
@@ -473,10 +456,7 @@ if __name__ == "__main__":
         if not candidates:
             return image_default_src_filter(image)
 
-        try:
-            target = int(target_width)
-        except TypeError, ValueError:
-            target = candidates[-1][0]
+        target = target_width
 
         eligible = [item for item in candidates if item[0] <= target]
         if eligible:
