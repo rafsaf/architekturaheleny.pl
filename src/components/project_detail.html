@@ -13,7 +13,7 @@
 
 {% if project.main_image %}
 {% set main_image_ratio = (project.main_image.width ~ " / " ~ project.main_image.height) if project.main_image.width and
-project.main_image.height else "16 / 9" %}
+project.main_image.height else "1.414 / 1" %}
 <div class="project-main-image image-shell"
     style="--placeholder-image: url('{{ (project.main_image.placeholder_asset_path or project.main_image.asset_path) | asset_url }}'); --image-ratio: {{ main_image_ratio }};">
     <picture>
@@ -99,7 +99,7 @@ project.main_image.height else "16 / 9" %}
         {% if project.other_images %}
         <div class="project-images">
             {% for image in project.other_images %}
-            {% set image_ratio = (image.width ~ " / " ~ image.height) if image.width and image.height else "16 / 9" %}
+            {% set image_ratio = (image.width ~ " / " ~ image.height) if image.width and image.height else "1.414 / 1" %}
             <div class="image-shell"
                 style="--placeholder-image: url('{{ (image.placeholder_asset_path or image.asset_path) | asset_url }}'); --image-ratio: {{ image_ratio }};">
                 <picture>
