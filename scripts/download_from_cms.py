@@ -3,7 +3,6 @@ import os
 import pathlib
 import re
 import shutil
-import hashlib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -107,8 +106,12 @@ def download_binary(url: str, destination: pathlib.Path) -> None:
 
 
 def ensure_directories() -> None:
-    if CMS_DATA_DIR.exists():
-        shutil.rmtree(CMS_DATA_DIR)
+    CMS_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if ITEMS_DIR.exists():
+        shutil.rmtree(ITEMS_DIR)
+    if FILES_META_DIR.exists():
+        shutil.rmtree(FILES_META_DIR)
 
     ITEMS_DIR.mkdir(parents=True, exist_ok=True)
     FILES_META_DIR.mkdir(parents=True, exist_ok=True)
@@ -155,29 +158,53 @@ def collect_file_ids_for_published_posts(payloads: dict[str, dict]) -> set[str]:
     return file_ids
 
 
+def get_base_asset_name(file_id: str, file_meta: dict) -> str:
+    filesize = file_meta["filesize"]
+    filename_download = file_meta["filename_download"]
+    safe_filename = sanitize_download_filename(filename_download)
+    return f"{file_id}__{filesize}__{safe_filename}"
+
+
 def get_asset_filename(file_id: str, file_meta: dict) -> str:
-    short_hash = hashlib.md5(file_id.encode("utf-8")).hexdigest()[:8]
+    base_name = get_base_asset_name(file_id, file_meta)
     filename_download = file_meta["filename_download"]
     safe_filename = sanitize_download_filename(filename_download)
-    return f"{file_id}-{short_hash}__{safe_filename}"
+    extension = pathlib.Path(safe_filename).suffix
+    if extension:
+        return base_name
 
+    mime_type = file_meta.get("type") or ""
+    mime_extension = ""
+    if "/" in mime_type:
+        mime_extension = mime_type.split("/", 1)[1].lower()
 
-def get_avif_asset_filename(file_id: str, file_meta: dict) -> str:
-    short_hash = hashlib.md5(file_id.encode("utf-8")).hexdigest()[:8]
-    filename_download = file_meta["filename_download"]
-    safe_filename = sanitize_download_filename(filename_download)
-    stem = pathlib.Path(safe_filename).stem
-    return f"{file_id}-{short_hash}__{stem}.avif"
+    if not mime_extension:
+        return base_name
+    return f"{base_name}.{mime_extension}"
 
 
 def get_variant_filename(
     file_id: str, file_meta: dict, variant: str, extension: str
 ) -> str:
-    short_hash = hashlib.md5(f"{file_id}:{variant}".encode("utf-8")).hexdigest()[:8]
-    filename_download = file_meta["filename_download"]
-    safe_filename = sanitize_download_filename(filename_download)
-    stem = pathlib.Path(safe_filename).stem
-    return f"{file_id}-{short_hash}__{stem}-{variant}.{extension}"
+    base_name = get_base_asset_name(file_id, file_meta)
+    return f"{base_name}__{variant}.{extension}"
+
+
+def ensure_asset_downloaded(url: str, destination: pathlib.Path) -> bool:
+    if destination.exists():
+        return False
+
+    download_binary(url, destination)
+    return True
+
+
+def prune_unused_assets(used_asset_names: set[str]) -> None:
+    for asset_path in ASSETS_DIR.iterdir():
+        if not asset_path.is_file():
+            continue
+        if asset_path.name in used_asset_names:
+            continue
+        asset_path.unlink()
 
 
 def pick_variant_path(variants: dict[int, str], target_width: int) -> str:
@@ -225,6 +252,7 @@ def main() -> None:
         )
 
     all_file_ids = collect_file_ids_for_published_posts(payloads)
+    used_asset_names: set[str] = set()
 
     files_index = {}
     for file_id in sorted(all_file_ids):
@@ -255,10 +283,11 @@ def main() -> None:
                 extension="avif",
             )
             placeholder_path = CMS_DATA_DIR / "assets" / placeholder_filename
-            download_binary(
+            ensure_asset_downloaded(
                 build_asset_url(file_id=file_id, params=placeholder_params),
                 placeholder_path,
             )
+            used_asset_names.add(placeholder_filename)
             variant_paths["placeholder"] = f"/cms_assets/{placeholder_filename}"
             variant_formats["placeholder"] = "avif"
 
@@ -283,16 +312,18 @@ def main() -> None:
                     extension="avif",
                 )
                 avif_path = CMS_DATA_DIR / "assets" / avif_filename
-                download_binary(
+                ensure_asset_downloaded(
                     build_asset_url(file_id=file_id, params=effective_params),
                     avif_path,
                 )
+                used_asset_names.add(avif_filename)
                 responsive_asset_paths[width] = f"/cms_assets/{avif_filename}"
                 variant_formats[variant_name] = "avif"
         else:
             fallback_relative = pathlib.Path("assets") / original_filename
             fallback_path = CMS_DATA_DIR / fallback_relative
-            download_binary(build_asset_url(file_id=file_id), fallback_path)
+            ensure_asset_downloaded(build_asset_url(file_id=file_id), fallback_path)
+            used_asset_names.add(original_filename)
 
             fallback_url = f"/cms_assets/{original_filename}"
             variant_paths = {
@@ -344,6 +375,8 @@ def main() -> None:
     (CMS_DATA_DIR / "files_index.json").write_text(
         json.dumps(files_index, indent=2, ensure_ascii=False)
     )
+
+    prune_unused_assets(used_asset_names)
 
 
 if __name__ == "__main__":

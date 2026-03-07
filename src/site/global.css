@@ -153,7 +153,8 @@ a {
     height: 100%;
     object-fit: cover;
     display: block;
-    filter: grayscale(1) contrast(0.94);
+    /* filter: grayscale(1) contrast(1); */
+    filter: sepia(30%);
     transition: filter 0.25s ease;
 }
 

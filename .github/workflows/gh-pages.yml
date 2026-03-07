@@ -39,6 +39,13 @@ jobs:
         run: uv sync --locked --all-extras --dev
         shell: bash
 
+      - name: Restore CMS assets cache
+        id: cms-assets-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: cms_data/assets
+          key: cms-assets
+
       - name: Sync CMS data and build
         env:
           CMS_TOKEN: ${{ secrets.CMS_TOKEN }}
@@ -46,7 +53,12 @@ jobs:
           uv run python scripts/download_from_cms.py
           uv run python template.py
           touch out/.nojekyll
-        # echo "architekturaheleny.pl" > out/CNAME
+
+      - name: Save CMS assets cache
+        uses: actions/cache/save@v4
+        with:
+          path: cms_data/assets
+          key: cms-assets
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
