@@ -53,6 +53,7 @@ RESPONSIVE_IMAGE_WIDTHS_QUALITY = [
     (1600, 85),
     (2000, 85),
 ]
+LARGE_ASSET_WARNING_BYTES = 1 * 1024 * 1024
 
 
 UUID_PATTERN = re.compile(
@@ -236,6 +237,26 @@ def get_effective_variant_params(variant_params: dict, file_meta: dict) -> dict:
     return params
 
 
+def warn_large_assets_in_dir() -> None:
+    large_assets: list[tuple[int, pathlib.Path]] = []
+
+    for asset_path in ASSETS_DIR.iterdir():
+        if not asset_path.is_file():
+            continue
+
+        filesize_bytes = asset_path.stat().st_size
+        if filesize_bytes <= LARGE_ASSET_WARNING_BYTES:
+            continue
+
+        large_assets.append((filesize_bytes, asset_path))
+
+    for filesize_bytes, asset_path in sorted(
+        large_assets, key=lambda item: item[0], reverse=True
+    ):
+        filesize_mb = filesize_bytes / (1024 * 1024)
+        print(f"WARNING: large asset {asset_path.name} size={filesize_mb:.2f}MB")
+
+
 def main() -> None:
     ensure_directories()
     download_oas_spec()
@@ -377,6 +398,7 @@ def main() -> None:
     )
 
     prune_unused_assets(used_asset_names)
+    warn_large_assets_in_dir()
 
 
 if __name__ == "__main__":
