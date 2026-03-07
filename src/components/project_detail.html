@@ -12,17 +12,17 @@
 </div>
 
 {% if project.main_image %}
-{% set main_image_ratio = (project.main_image.width ~ " / " ~ project.main_image.height) if project.main_image.width and
-project.main_image.height else "1.414 / 1" %}
-<div class="project-main-image image-shell"
-    style="--placeholder-image: url('{{ (project.main_image.placeholder_asset_path or project.main_image.asset_path) | asset_url }}'); --image-ratio: {{ main_image_ratio }};">
+{% set main_image_ratio = (project.main_image.width / project.main_image.height) if project.main_image.width and
+project.main_image.height else 1.414 %}
+<div class="project-main-image" style="--main-image-ratio: {{ main_image_ratio }};">
     <picture>
         <source media="(max-width: 479px)" srcset="{{ (project.main_image | image_for_width(480)) | asset_url }}" />
         <source media="(max-width: 799px)" srcset="{{ (project.main_image | image_for_width(800)) | asset_url }}" />
         <source media="(max-width: 999px)" srcset="{{ (project.main_image | image_for_width(1000)) | asset_url }}" />
         <source media="(max-width: 1199px)" srcset="{{ (project.main_image | image_for_width(1200)) | asset_url }}" />
         <source media="(max-width: 1599px)" srcset="{{ (project.main_image | image_for_width(1600)) | asset_url }}" />
-        <img src="{{ (project.main_image | image_for_width(2000)) | asset_url }}"
+        <img src="{{ (project.main_image | image_for_width(2000)) | asset_url }}" data-project-media-image
+            data-project-viewer-src="{{ project.main_image.asset_path | asset_url }}"
             alt="{{ project.title }} - główne zdjęcie" loading="lazy" class="fade-in-image"
             onload="this.classList.add('is-loaded')" />
     </picture>
@@ -59,7 +59,10 @@ project.main_image.height else "1.414 / 1" %}
 
     <div class="project-content-media">
         {% if project.carousel_images %}
-        <div class="project-carousel" data-carousel data-interval="5000">
+        {% set carousel_ratio = (project.carousel_images[0].width / project.carousel_images[0].height) if
+        project.carousel_images[0].width and project.carousel_images[0].height else 1.414 %}
+        <div class="project-carousel" data-carousel data-interval="5000"
+            style="--carousel-ratio: {{ carousel_ratio }};">
             <button class="project-carousel-nav project-carousel-nav-prev" type="button"
                 aria-label="Poprzednie zdjęcie">
                 &#10094;
@@ -75,6 +78,7 @@ project.main_image.height else "1.414 / 1" %}
                 <source media="(max-width: 1199px)" srcset="{{ (image | image_for_width(1200)) | asset_url }}" />
                 <source media="(max-width: 1599px)" srcset="{{ (image | image_for_width(1600)) | asset_url }}" />
                 <img src="{{ (image | image_for_width(2000)) | asset_url }}" data-project-media-image
+                    data-project-viewer-src="{{ image.asset_path | asset_url }}"
                     alt="{{ project.title }} - karuzela {{ loop.index }}" loading="lazy"
                     class="project-carousel-image{% if loop.first %} is-active{% endif %}" />
             </picture>
@@ -99,9 +103,8 @@ project.main_image.height else "1.414 / 1" %}
         {% if project.other_images %}
         <div class="project-images">
             {% for image in project.other_images %}
-            {% set image_ratio = (image.width ~ " / " ~ image.height) if image.width and image.height else "1.414 / 1" %}
-            <div class="image-shell"
-                style="--placeholder-image: url('{{ (image.placeholder_asset_path or image.asset_path) | asset_url }}'); --image-ratio: {{ image_ratio }};">
+            {% set image_ratio_num = (image.width / image.height) if image.width and image.height else 1.414 %}
+            <div class="project-gallery-item" style="--gallery-image-ratio: {{ image_ratio_num }};">
                 <picture>
                     <source media="(max-width: 479px)" srcset="{{ (image | image_for_width(480)) | asset_url }}" />
                     <source media="(max-width: 799px)" srcset="{{ (image | image_for_width(800)) | asset_url }}" />
@@ -109,6 +112,7 @@ project.main_image.height else "1.414 / 1" %}
                     <source media="(max-width: 1199px)" srcset="{{ (image | image_for_width(1200)) | asset_url }}" />
                     <source media="(max-width: 1599px)" srcset="{{ (image | image_for_width(1600)) | asset_url }}" />
                     <img src="{{ (image | image_for_width(2000)) | asset_url }}" data-project-media-image
+                        data-project-viewer-src="{{ image.asset_path | asset_url }}"
                         alt="{{ project.title }} - zdjęcie {{ loop.index }}" loading="lazy" class="fade-in-image"
                         onload="this.classList.add('is-loaded')" />
                 </picture>
@@ -118,6 +122,10 @@ project.main_image.height else "1.414 / 1" %}
         {% endif %}
     </div>
 </div>
+
+<dialog class="project-image-viewer" data-project-image-viewer aria-label="Podgląd zdjęcia">
+    <img src="" alt="" class="project-image-viewer-image" data-project-image-viewer-image />
+</dialog>
 
 <script>
     const projectBackLink = document.querySelector("[data-project-back-link]");
@@ -214,6 +222,42 @@ project.main_image.height else "1.414 / 1" %}
             setDuration();
         } else {
             video.addEventListener("loadedmetadata", setDuration, { once: true });
+        }
+    }
+
+    const imageViewer = document.querySelector("[data-project-image-viewer]");
+    const imageViewerImage = imageViewer?.querySelector("[data-project-image-viewer-image]");
+
+    if (imageViewer && imageViewerImage) {
+        const closeViewer = () => {
+            if (!imageViewer.open) {
+                return;
+            }
+
+            imageViewer.close();
+        };
+
+        imageViewer.addEventListener("close", () => {
+            document.body.classList.remove("image-viewer-open");
+            imageViewerImage.removeAttribute("src");
+            imageViewerImage.alt = "";
+        });
+
+        imageViewer.addEventListener("click", () => {
+            closeViewer();
+        });
+
+        for (const image of document.querySelectorAll("[data-project-media-image]")) {
+            image.addEventListener("click", () => {
+                if (image.classList.contains("project-carousel-image") && !image.classList.contains("is-active")) {
+                    return;
+                }
+
+                imageViewerImage.src = image.dataset.projectViewerSrc || image.currentSrc || image.src;
+                imageViewerImage.alt = image.alt || "Podgląd zdjęcia";
+                imageViewer.showModal();
+                document.body.classList.add("image-viewer-open");
+            });
         }
     }
 
