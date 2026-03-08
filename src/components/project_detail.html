@@ -238,6 +238,7 @@ project.main_image.height else 1.414 %}
         };
 
         imageViewer.addEventListener("close", () => {
+            imageViewer.classList.remove("is-visible");
             document.body.classList.remove("image-viewer-open");
             imageViewerImage.removeAttribute("src");
             imageViewerImage.alt = "";
@@ -257,6 +258,9 @@ project.main_image.height else 1.414 %}
                 imageViewerImage.alt = image.alt || "Podgląd zdjęcia";
                 imageViewer.showModal();
                 document.body.classList.add("image-viewer-open");
+                requestAnimationFrame(() => {
+                    imageViewer.classList.add("is-visible");
+                });
             });
         }
     }

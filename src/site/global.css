@@ -316,6 +316,28 @@ a {
 
 .project-description {
     line-height: 1.7;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.project-description p,
+.project-description li,
+.project-description a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.project-description img,
+.project-description video,
+.project-description iframe,
+.project-description table {
+    max-width: 100%;
+}
+
+.project-description pre {
+    max-width: 100%;
+    overflow-x: auto;
 }
 
 .project-description p {
@@ -481,6 +503,7 @@ a {
 
 [data-project-media-image] {
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body.image-viewer-open {
@@ -496,6 +519,10 @@ body.image-viewer-open {
     max-width: none;
     max-height: none;
     background: transparent;
+    outline: none;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .project-image-viewer::backdrop {
@@ -508,6 +535,15 @@ body.image-viewer-open {
     place-items: center;
 }
 
+.project-image-viewer.is-visible {
+    opacity: 1;
+}
+
+.project-image-viewer:focus-visible,
+.project-image-viewer-image:focus-visible {
+    outline: none;
+}
+
 .project-image-viewer-image {
     display: block;
     width: min(96vw, 1800px);
@@ -516,6 +552,14 @@ body.image-viewer-open {
     object-position: center;
     border: 0;
     background: transparent;
+    opacity: 0;
+    transform: scale(0.985);
+    transition: opacity 0.18s ease, transform 0.22s ease;
+}
+
+.project-image-viewer.is-visible .project-image-viewer-image {
+    opacity: 1;
+    transform: scale(1);
 }
 
 @media (max-width: 900px) {
