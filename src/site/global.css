@@ -632,6 +632,10 @@ body.image-viewer-open {
 }
 
 @media (max-width: 900px) and (orientation: landscape) {
+    .nav {
+        display: none;
+    }
+
     .project-image-viewer-image {
         width: 100vw;
         height: 100dvh;
