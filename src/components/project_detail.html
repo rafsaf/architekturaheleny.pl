@@ -229,6 +229,28 @@ project.main_image.height else 1.414 %}
     const imageViewerImage = imageViewer?.querySelector("[data-project-image-viewer-image]");
 
     if (imageViewer && imageViewerImage) {
+        let scrollTopBeforeViewer = 0;
+
+        const lockPageScroll = () => {
+            scrollTopBeforeViewer = window.scrollY || window.pageYOffset || 0;
+            document.body.classList.add("image-viewer-open");
+            document.body.style.position = "fixed";
+            document.body.style.top = `-${scrollTopBeforeViewer}px`;
+            document.body.style.left = "0";
+            document.body.style.right = "0";
+            document.body.style.width = "100%";
+        };
+
+        const unlockPageScroll = () => {
+            document.body.classList.remove("image-viewer-open");
+            document.body.style.position = "";
+            document.body.style.top = "";
+            document.body.style.left = "";
+            document.body.style.right = "";
+            document.body.style.width = "";
+            window.scrollTo(0, scrollTopBeforeViewer);
+        };
+
         const closeViewer = () => {
             if (!imageViewer.open) {
                 return;
@@ -239,7 +261,7 @@ project.main_image.height else 1.414 %}
 
         imageViewer.addEventListener("close", () => {
             imageViewer.classList.remove("is-visible");
-            document.body.classList.remove("image-viewer-open");
+            unlockPageScroll();
             imageViewerImage.removeAttribute("src");
             imageViewerImage.alt = "";
         });
@@ -257,7 +279,7 @@ project.main_image.height else 1.414 %}
                 imageViewerImage.src = image.dataset.projectViewerSrc || image.currentSrc || image.src;
                 imageViewerImage.alt = image.alt || "Podgląd zdjęcia";
                 imageViewer.showModal();
-                document.body.classList.add("image-viewer-open");
+                lockPageScroll();
                 requestAnimationFrame(() => {
                     imageViewer.classList.add("is-visible");
                 });

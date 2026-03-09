@@ -483,22 +483,23 @@ a {
 .project-images img {
     display: block;
     width: 100%;
-    max-width: 100%;
-    height: auto;
-    max-height: 90vh;
+    height: 100%;
     object-fit: contain;
 }
 
 .project-images .project-gallery-item {
     display: block;
+    width: 100%;
+    aspect-ratio: var(--gallery-image-ratio, 1.414);
+    max-height: 95vh;
+    overflow: hidden;
+    background: var(--bg);
 }
 
 .project-images .project-gallery-item picture {
     display: block;
-    width: min(100%, calc(90vh * var(--gallery-image-ratio, 1.414)));
-    max-width: 100%;
-    margin-inline: auto;
-    border: 1px solid var(--border);
+    width: 100%;
+    height: 100%;
 }
 
 [data-project-media-image] {
@@ -508,6 +509,8 @@ a {
 
 body.image-viewer-open {
     overflow: hidden;
+    overscroll-behavior: none;
+    height: 100dvh;
 }
 
 .project-image-viewer {
@@ -523,6 +526,8 @@ body.image-viewer-open {
     opacity: 0;
     transition: opacity 0.18s ease;
     -webkit-tap-highlight-color: transparent;
+    overflow: auto;
+    overscroll-behavior: contain;
 }
 
 .project-image-viewer::backdrop {
@@ -564,15 +569,15 @@ body.image-viewer-open {
 
 @media (max-width: 900px) {
     .project-image-viewer-image {
-        width: 94vw;
-        height: 88vh;
+        width: 100vw;
+        height: 100dvh;
     }
 }
 
 @media (max-width: 900px) and (orientation: landscape) {
     .project-image-viewer-image {
-        width: 92vw;
-        height: 86vh;
+        width: 100vw;
+        height: 100dvh;
     }
 }
 
