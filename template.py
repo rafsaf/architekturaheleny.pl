@@ -174,6 +174,50 @@ def relation_sort_key(relation: dict) -> tuple:
     return (1, 0, relation_id or 0)
 
 
+def group_relations_by_parent(
+    relations: list[dict], parent_key: str
+) -> dict[int, list[dict]]:
+    grouped: dict[int, list[dict]] = {}
+    for relation in relations:
+        parent_id = relation.get(parent_key)
+        if parent_id is None:
+            continue
+        grouped.setdefault(parent_id, []).append(relation)
+    return grouped
+
+
+def collect_files_from_relations(
+    relations: list[dict],
+    files_map: dict,
+    used_ids: set[str] | None = None,
+    required_type_prefix: str | None = None,
+) -> list[dict]:
+    collected: list[dict] = []
+    for relation in relations:
+        file_id = relation.get("directus_files_id")
+        if not file_id:
+            continue
+
+        file_id_str = str(file_id)
+        if used_ids is not None and file_id_str in used_ids:
+            continue
+
+        file_data = files_map.get(file_id_str)
+        if not file_data:
+            continue
+
+        if required_type_prefix and not str(file_data.get("type") or "").startswith(
+            required_type_prefix
+        ):
+            continue
+
+        if used_ids is not None:
+            used_ids.add(file_id_str)
+        collected.append(file_data)
+
+    return collected
+
+
 def process_path(
     p: pathlib.Path, context: dict, environment: jinja2.Environment
 ) -> None:
@@ -221,26 +265,18 @@ def load_projects() -> list[dict]:
     ).get("data", [])
     files_map = load_json(cms_data_dir / "files_index.json")
 
-    relation_by_post: dict[int, list[dict]] = {}
-    for relation in main_relations:
-        post_id = relation.get("architekturahelenypl_post_id")
-        if post_id is None:
-            continue
-        relation_by_post.setdefault(post_id, []).append(relation)
-
-    other_relation_by_post: dict[int, list[dict]] = {}
-    for relation in other_relations:
-        post_id = relation.get("architekturahelenypl_post_id")
-        if post_id is None:
-            continue
-        other_relation_by_post.setdefault(post_id, []).append(relation)
-
-    video_relation_by_post: dict[int, list[dict]] = {}
-    for relation in video_relations:
-        post_id = relation.get("architekturahelenypl_post_id")
-        if post_id is None:
-            continue
-        video_relation_by_post.setdefault(post_id, []).append(relation)
+    relation_by_post = group_relations_by_parent(
+        main_relations,
+        "architekturahelenypl_post_id",
+    )
+    other_relation_by_post = group_relations_by_parent(
+        other_relations,
+        "architekturahelenypl_post_id",
+    )
+    video_relation_by_post = group_relations_by_parent(
+        video_relations,
+        "architekturahelenypl_post_id",
+    )
 
     projects: list[dict] = []
     for post in posts:
@@ -275,39 +311,21 @@ def load_projects() -> list[dict]:
         if main_page_image_id:
             used_ids.add(str(main_page_image_id))
 
-        carousel_images: list[dict] = []
-        for relation in sorted_carousel_relations:
-            file_id = relation.get("directus_files_id")
-            if not file_id or str(file_id) in used_ids:
-                continue
-            file_data = files_map.get(str(file_id))
-            if not file_data:
-                continue
-            used_ids.add(str(file_id))
-            carousel_images.append(file_data)
-
-        other_images: list[dict] = []
-        for relation in sorted_other_relations:
-            file_id = relation.get("directus_files_id")
-            if not file_id or str(file_id) in used_ids:
-                continue
-            file_data = files_map.get(str(file_id))
-            if not file_data:
-                continue
-            used_ids.add(str(file_id))
-            other_images.append(file_data)
-
-        videos: list[dict] = []
-        for relation in sorted_video_relations:
-            file_id = relation.get("directus_files_id")
-            if not file_id:
-                continue
-            file_data = files_map.get(str(file_id))
-            if not file_data:
-                continue
-            if not str(file_data["type"]).startswith("video/"):
-                continue
-            videos.append(file_data)
+        carousel_images = collect_files_from_relations(
+            sorted_carousel_relations,
+            files_map,
+            used_ids=used_ids,
+        )
+        other_images = collect_files_from_relations(
+            sorted_other_relations,
+            files_map,
+            used_ids=used_ids,
+        )
+        videos = collect_files_from_relations(
+            sorted_video_relations,
+            files_map,
+            required_type_prefix="video/",
+        )
 
         cover_image = main_image or (carousel_images[0] if carousel_images else None)
         if not cover_image and other_images:
@@ -359,17 +377,51 @@ def load_site_content() -> dict:
     data = load_json(cms_data_dir / "items" / "architekturahelenypl_data.json").get(
         "data", {}
     )
+    data_relations = load_json(
+        cms_data_dir / "items" / "architekturahelenypl_data_files.json"
+    ).get("data", [])
+    files_map = load_json(cms_data_dir / "files_index.json")
 
-    row = data
+    row = data if isinstance(data, dict) else {}
 
     about_me = (row.get("about_me") or "").strip()
     main_page_description = (row.get("main_page_description") or "").strip()
     about_me_page_description = (row.get("about_me_page_description") or "").strip()
+    data_id = row.get("id")
+
+    sorted_data_relations = sorted(
+        [
+            relation
+            for relation in data_relations
+            if relation.get("architekturahelenypl_data_id") == data_id
+        ],
+        key=relation_sort_key,
+    )
+    about_me_images = collect_files_from_relations(
+        sorted_data_relations,
+        files_map,
+        used_ids=set(),
+    )
+
+    about_me_main_image = None
+    about_me_main_image_id = row.get("image")
+    if about_me_main_image_id:
+        about_me_main_image = files_map.get(str(about_me_main_image_id))
+        if about_me_main_image:
+            about_me_images = [
+                about_me_main_image,
+                *[
+                    img
+                    for img in about_me_images
+                    if img.get("id") != about_me_main_image.get("id")
+                ],
+            ]
 
     return {
         "about_me": about_me,
         "main_page_description": main_page_description,
         "about_me_page_description": about_me_page_description,
+        "about_me_images": about_me_images,
     }
 
 
@@ -586,6 +638,7 @@ if __name__ == "__main__":
         "about_me": site_content["about_me"],
         "main_page_description": site_content["main_page_description"],
         "about_me_page_description": site_content["about_me_page_description"],
+        "about_me_images": site_content["about_me_images"],
         "inline_global_css": inline_global_css,
     }
 

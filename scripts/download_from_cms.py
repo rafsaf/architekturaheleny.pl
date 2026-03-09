@@ -24,6 +24,7 @@ COLLECTIONS = [
     "architekturahelenypl_post_files_1",
     "architekturahelenypl_post_files_2",
     "architekturahelenypl_data",
+    "architekturahelenypl_data_files",
 ]
 
 
@@ -150,6 +151,24 @@ def collect_file_ids_for_published_posts(payloads: dict[str, dict]) -> set[str]:
         for relation in relations:
             post_id = relation.get("architekturahelenypl_post_id")
             if post_id not in published_post_ids:
+                continue
+
+            directus_file_id = relation.get("directus_files_id")
+            if directus_file_id and UUID_PATTERN.match(directus_file_id):
+                file_ids.add(directus_file_id)
+
+    site_data = payloads.get("architekturahelenypl_data", {}).get("data", {})
+    if isinstance(site_data, dict):
+        about_image_id = site_data.get("image")
+        if about_image_id and UUID_PATTERN.match(about_image_id):
+            file_ids.add(about_image_id)
+
+        site_data_id = site_data.get("id")
+        data_file_relations = payloads.get("architekturahelenypl_data_files", {}).get(
+            "data", []
+        )
+        for relation in data_file_relations:
+            if relation.get("architekturahelenypl_data_id") != site_data_id:
                 continue
 
             directus_file_id = relation.get("directus_files_id")

@@ -9,4 +9,24 @@ sposób pracy przy tworzeniu funkcjonalnych, spokojnych przestrzeni." %}
 <div class="about-text">
     {{ about_me | markdown }}
 </div>
+{% if about_me_images %}
+<br />
+<br />
+<div class="project-images">
+    {% for image in about_me_images %}
+    {% set image_ratio_num = (image.width / image.height) if image.width and image.height else 1.414 %}
+    <div class="project-gallery-item" style="--gallery-image-ratio: {{ image_ratio_num }};">
+        <picture>
+            <source media="(max-width: 479px)" srcset="{{ (image | image_for_width(480)) | asset_url }}" />
+            <source media="(max-width: 799px)" srcset="{{ (image | image_for_width(800)) | asset_url }}" />
+            <source media="(max-width: 999px)" srcset="{{ (image | image_for_width(1000)) | asset_url }}" />
+            <source media="(max-width: 1199px)" srcset="{{ (image | image_for_width(1200)) | asset_url }}" />
+            <source media="(max-width: 1599px)" srcset="{{ (image | image_for_width(1600)) | asset_url }}" />
+            <img src="{{ (image | image_for_width(2000)) | asset_url }}" alt="O mnie - zdjęcie {{ loop.index }}"
+                loading="lazy" class="fade-in-image" onload="this.classList.add('is-loaded')" />
+        </picture>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endblock %}
