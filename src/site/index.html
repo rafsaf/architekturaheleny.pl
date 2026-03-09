@@ -15,9 +15,17 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
         <span class="scroll-hint-icon" aria-hidden="true">↓</span>
     </button>
 </div>
+<div class="projects-categories" role="tablist" aria-label="Kategorie projektów">
+    {% for category in category_filters %}
+    <button type="button" class="projects-category-btn{% if category.key == 'all' %} is-active{% endif %}"
+        data-category-filter="{{ category.key }}" aria-pressed="{{ 'true' if category.key == 'all' else 'false' }}">
+        {{ category.label }}
+    </button>
+    {% endfor %}
+</div>
 <ul class="projects-grid">
     {% for project in projects %}
-    <li>
+    <li data-project-item data-project-categories="{{ project.categories | join(',') }}">
         <a class="project-card image-shell" data-project-card href="/projekty/{{ project.url }}/"
             style="--placeholder-image: url('{{ (project.cover_image.placeholder_asset_path if project.cover_image else '') | asset_url }}');">
             {% if project.cover_image %}
@@ -47,12 +55,39 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
 
 <script>
     (() => {
-        const cards = Array.from(document.querySelectorAll("[data-project-card]"));
+        const projectItems = Array.from(document.querySelectorAll("[data-project-item]"));
+        const cards = projectItems
+            .map((item) => item.querySelector("[data-project-card]"))
+            .filter(Boolean);
         if (!cards.length) return;
         const mobileLayoutQuery = window.matchMedia("(max-width: 900px)");
         const scrollHint = document.querySelector("[data-scroll-hint]");
+        const filterButtons = Array.from(document.querySelectorAll("[data-category-filter]"));
         const projectsScrollKey = "projectsScrollY";
         const projectsReturnFlagKey = "projectsReturnPending";
+
+        const getVisibleCards = () => cards.filter((card) => !card.closest("[data-project-item]")?.hidden);
+
+        const setActiveFilterButton = (category) => {
+            for (const button of filterButtons) {
+                const isActive = button.dataset.categoryFilter === category;
+                button.classList.toggle("is-active", isActive);
+                button.setAttribute("aria-pressed", isActive ? "true" : "false");
+            }
+        };
+
+        const applyCategoryFilter = (category) => {
+            for (const item of projectItems) {
+                const rawCategories = item.dataset.projectCategories || "";
+                const categories = rawCategories.split(",").map((value) => value.trim()).filter(Boolean);
+                const shouldShow = category === "all" || categories.includes(category);
+                item.hidden = !shouldShow;
+            }
+
+            setActiveFilterButton(category);
+            updateCards();
+            updateScrollHint();
+        };
 
         const restoreScrollPosition = () => {
             if (sessionStorage.getItem(projectsReturnFlagKey) !== "1") {
@@ -92,6 +127,7 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
         };
 
         const updateCards = () => {
+            const visibleCards = getVisibleCards();
             const nav = document.getElementById("navbar");
             const navIsSticky = nav && getComputedStyle(nav).position === "sticky";
             const desktopLine = navIsSticky
@@ -99,7 +135,7 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
                 : 18;
 
             if (isBottomOfPage()) {
-                for (const card of cards) {
+                for (const card of visibleCards) {
                     card.classList.add("is-scroll-active");
                 }
                 return;
@@ -107,14 +143,14 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
 
             if (mobileLayoutQuery.matches) {
                 if (window.scrollY < 8) {
-                    for (const card of cards) {
+                    for (const card of visibleCards) {
                         card.classList.remove("is-scroll-active");
                     }
                     return;
                 }
 
                 const mobileLine = window.innerHeight / 2;
-                for (const card of cards) {
+                for (const card of visibleCards) {
                     const rect = card.getBoundingClientRect();
                     const midpoint = rect.top + rect.height / 2;
                     const isRevealed = midpoint <= mobileLine;
@@ -123,7 +159,7 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
                 return;
             }
 
-            for (const card of cards) {
+            for (const card of visibleCards) {
                 const rect = card.getBoundingClientRect();
                 const isAtRevealBand =
                     rect.top <= desktopLine && rect.bottom > desktopLine;
@@ -149,6 +185,12 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
             card.addEventListener("click", rememberScrollForProjectNavigation);
         }
 
+        for (const button of filterButtons) {
+            button.addEventListener("click", () => {
+                applyCategoryFilter(button.dataset.categoryFilter || "all");
+            });
+        }
+
         scrollHint?.addEventListener("click", () => {
             window.scrollBy({
                 top: Math.max(160, Math.round(window.innerHeight * 0.35)),
@@ -156,6 +198,7 @@ pokazane w minimalistycznej formie, z naciskiem na detal i funkcję." %}
             });
         });
 
+        applyCategoryFilter("all");
         restoreScrollPosition();
         updateCards();
         updateScrollHint();

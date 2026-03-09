@@ -21,6 +21,46 @@ cms_data_dir = root_dir / "cms_data"
 cms_assets_dir = cms_data_dir / "assets"
 site_url = os.getenv("SITE_URL", "https://architekturaheleny.pl").rstrip("/")
 
+CATEGORY_LABELS = {
+    "all": "Wszystkie",
+    "individual": "Autorskie",
+    "team": "Zespołowe",
+    "bachelors_thesis": "Praca inżynierska",
+    "masters_thesis": "Praca magisterska",
+}
+
+CATEGORY_FILTERS = [
+    {"key": key, "label": label}
+    for key in (
+        "all",
+        "individual",
+        "team",
+        "bachelors_thesis",
+        "masters_thesis",
+    )
+    if (label := str(CATEGORY_LABELS.get(key) or "").strip())
+]
+
+
+def build_category_filters(projects: list[dict]) -> list[dict]:
+    active_categories = {
+        category
+        for project in projects
+        for category in project.get("categories", [])
+        if category
+    }
+
+    filters: list[dict] = [{"key": "all", "label": CATEGORY_LABELS["all"]}]
+    for item in CATEGORY_FILTERS:
+        key = item["key"]
+        if key == "all":
+            continue
+        if key not in active_categories:
+            continue
+        filters.append(item)
+
+    return filters
+
 
 def absolute_url(path: str) -> str:
     normalized = str(path or "").strip()
@@ -273,11 +313,22 @@ def load_projects() -> list[dict]:
         if not cover_image and other_images:
             cover_image = other_images[0]
 
+        categories: list[str] = []
+        for value in post["category"]:
+            category_key = str(value).strip()
+            if not category_key:
+                continue
+            if not str(CATEGORY_LABELS.get(category_key) or "").strip():
+                continue
+            if category_key not in categories:
+                categories.append(category_key)
+
         projects.append(
             {
                 "id": post_id,
                 "title": title,
                 "url": project_url,
+                "categories": categories,
                 "updated_date": normalize_iso_date(
                     post.get("date_updated") or post.get("date_created"),
                     fallback_date=datetime.datetime.now(datetime.UTC)
@@ -523,12 +574,15 @@ if __name__ == "__main__":
     environment.filters["image_for_width"] = image_for_width_filter
 
     projects = load_projects()
+    category_filters = build_category_filters(projects)
     site_content = load_site_content()
     inline_global_css = (site / "global.css").read_text()
     context = {
         "build_year": datetime.datetime.now(datetime.UTC).year,
         "site_url": site_url,
         "projects": projects,
+        "category_labels": CATEGORY_LABELS,
+        "category_filters": category_filters,
         "about_me": site_content["about_me"],
         "main_page_description": site_content["main_page_description"],
         "about_me_page_description": site_content["about_me_page_description"],

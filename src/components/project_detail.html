@@ -8,7 +8,16 @@
         </svg>
         <span>Wróć</span>
     </a>
-    <h1 class="page-title">{{ project.title }}</h1>
+    <div class="project-title-stack">
+        <h1 class="page-title">{{ project.title }}</h1>
+        {% if project.categories %}
+        <div class="project-categories" aria-label="Kategorie projektu">
+            {% for category in project.categories %}
+            <span class="project-category-pill">{{ category_labels.get(category, category) }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
 </div>
 
 {% if project.main_image %}
