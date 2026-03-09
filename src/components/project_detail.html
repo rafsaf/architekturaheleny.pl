@@ -161,6 +161,10 @@ project.main_image.height else 1.414 %}
         const nextButton = carousel.querySelector(".project-carousel-nav-next");
         let index = 0;
         let paused = false;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchDeltaX = 0;
+        let touchDeltaY = 0;
 
         const goTo = (newIndex) => {
             images[index].classList.remove("is-active");
@@ -182,6 +186,64 @@ project.main_image.height else 1.414 %}
 
         nextButton?.addEventListener("click", () => {
             goTo(index + 1);
+        });
+
+        carousel.addEventListener(
+            "touchstart",
+            (event) => {
+                if (event.touches.length !== 1) {
+                    return;
+                }
+
+                const touch = event.touches[0];
+                touchStartX = touch.clientX;
+                touchStartY = touch.clientY;
+                touchDeltaX = 0;
+                touchDeltaY = 0;
+                paused = true;
+            },
+            { passive: true }
+        );
+
+        carousel.addEventListener(
+            "touchmove",
+            (event) => {
+                if (event.touches.length !== 1) {
+                    return;
+                }
+
+                const touch = event.touches[0];
+                touchDeltaX = touch.clientX - touchStartX;
+                touchDeltaY = touch.clientY - touchStartY;
+            },
+            { passive: true }
+        );
+
+        carousel.addEventListener("touchend", () => {
+            const horizontalDistance = Math.abs(touchDeltaX);
+            const verticalDistance = Math.abs(touchDeltaY);
+            const swipeThreshold = 40;
+
+            if (
+                horizontalDistance >= swipeThreshold
+                && horizontalDistance > verticalDistance
+            ) {
+                if (touchDeltaX < 0) {
+                    goTo(index + 1);
+                } else {
+                    goTo(index - 1);
+                }
+            }
+
+            paused = false;
+            touchDeltaX = 0;
+            touchDeltaY = 0;
+        });
+
+        carousel.addEventListener("touchcancel", () => {
+            paused = false;
+            touchDeltaX = 0;
+            touchDeltaY = 0;
         });
 
         setInterval(() => {
