@@ -41,7 +41,7 @@ jobs:
 
       - name: Restore CMS assets cache
         id: cms-assets-cache-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: cms_data/assets
           key: cms-assets
@@ -55,7 +55,7 @@ jobs:
           touch out/.nojekyll
 
       - name: Save CMS assets cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: cms_data/assets
           key: cms-assets
